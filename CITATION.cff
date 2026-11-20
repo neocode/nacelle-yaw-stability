@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it and the associated paper as below."
+title: "nacelle-yaw-stability: code and data for the yaw stability of a nacelle suspended from a multi-fall offshore crane hoist"
+type: software
+version: "2.0.0"
+date-released: "2026-11-06"
+license: MIT
+repository-code: "https://github.com/neocode/nacelle-yaw-stability"
+authors:
+  - given-names: "Serhii"
+    family-names: "Podliesnyi"
+    affiliation: "Department of Fundamentals of Machine Design, Donbas State Engineering Academy, Kramatorsk, Ukraine"
+  - given-names: "Oleksii"
+    family-names: "Sheremet"
+    affiliation: "Department of Electromechanical Systems of Automation and Electric Drive, Donbas State Engineering Academy, Kramatorsk, Ukraine"
+    email: "Oleksii.Sheremet@ddma.edu.ua"
+keywords:
+  - offshore installation
+  - offshore crane
+  - multi-fall hoist
+  - wind-turbine nacelle
+  - static divergence
+  - yaw stability
+  - tugger lines
+preferred-citation:
+  type: article
+  title: "Yaw stability of a nacelle suspended from a multi-fall offshore crane hoist: gravitational torsional stiffness and wind-induced static divergence"
+  authors:
+    - given-names: "Serhii"
+      family-names: "Podliesnyi"
+    - given-names: "Oleksii"
+      family-names: "Sheremet"
+  year: 2026
+  status: submitted

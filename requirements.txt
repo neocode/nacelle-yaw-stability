@@ -1,0 +1,9 @@
+numpy==2.3.5
+scipy==1.17.0
+matplotlib==3.10.8
+numba==0.63.1
+capytaine==3.0.0
+xarray==2026.9.0
+pandas==2.3.3
+pillow==12.1.0
+pytest>=8.0
