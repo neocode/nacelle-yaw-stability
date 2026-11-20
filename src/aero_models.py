@@ -43,7 +43,7 @@ class Munk:
 
 
 class BluffBox:
-    """Sharp-edged rectangular box, Greenwell (2008) Eq. 7 (attached-flow fit to
+    """Sharp-edged rectangular box, Greenwell (ICAS 2008; Aeronaut J 2011) attached-flow fit (Eq. (12) of the paper) to
     NASA TM-X 62169 and Technion TAE-844 data):
         c(beta) = c_s (1-(W/L)^2) sin 2beta - c_a (W/L) sin 4beta
     plus the moment of the body-axis side force C_Y = C_Yb sin(beta) (Greenwell

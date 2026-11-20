@@ -117,6 +117,34 @@ def run():
         # effective aerodynamic stiffness at psi = 0 for wind direction theta
         head[n] = [float(m.dc(-t)) for t in th]
     res["heading"] = head
+    # zero crossings of the aerodynamic stiffness versus wind direction
+    zc = {}
+    for n in ("Munk (BEM box)", "box, mid", "box, high", "box, low"):
+        v = np.array([models[n].dc(-t) for t in th])
+        idx = np.where(np.sign(v[:-1]) != np.sign(v[1:]))[0]
+        zc[n] = [float(np.degrees(th[i])) for i in idx]
+        zc[n + " | max"] = [float(np.degrees(th[int(np.argmax(v))])), float(v.max())]
+    res["heading_zero_crossings"] = zc
+
+    # worst heading for the bluff-body fit: lowest fold speed of the primary branch
+    # (rope torque included) over wind directions 0..60 deg
+    worst = {}
+    for n in ("box, mid", "box, high", "box, low"):
+        m = models[n]
+        for L in (cm.L_mating, 60.0, cm.L_ref, cm.L_liftoff):
+            s = cm.suspension(L)
+            Ud = U_div(s.k_psi, m.CK)
+            best = (np.inf, None)
+            for thd in np.arange(0.0, 61.0, 2.5):
+                ug = np.linspace(0.0, 1.5, 301)
+                pb = primary_branch(s.k_psi, s.M_r, m, ug, np.radians(thd))
+                ok = np.where(~np.isnan(pb))[0]
+                uf = ug[ok[-1]] if len(ok) < len(ug) else np.inf
+                if uf * Ud < best[0]:
+                    best = (uf * Ud, thd)
+            worst[f"{n} | L={int(L)}"] = dict(U_fold_min=float(best[0]), theta_deg=best[1],
+                                              U_div_aligned=float(Ud))
+    res["worst_heading"] = worst
 
     # ---------------------------------------------- equilibrium branches
     u = np.linspace(0.0, 1.6, 321)

@@ -2,7 +2,8 @@
 Section 5.3: floating crane vessel - hydrodynamics (Capytaine BEM), RAOs and
 boom-tip motions.
 
-Generic box-shaped heavy-lift crane vessel, 160 m x 44 m x 9 m draught.
+Box-shaped hull with the main dimensions of the heavy-lift crane vessel Les Alizes
+(236.8 m x 52 m, operating draught 9 m).
 Rotation centre = centre of gravity.  Extra linear roll damping 5 % of
 critical (viscous) and soft horizontal restoring (DP/mooring) giving 150 s
 surge/sway/yaw natural periods are added outside the BEM.
@@ -46,7 +47,7 @@ def run():
     M = np.diag([mass, mass, mass, mass * RXX ** 2, mass * RYY ** 2, mass * RZZ ** 2])
     C = body.compute_hydrostatic_stiffness(rho=cm.rho_w, g=cm.g)
     C = np.array(C.values)
-    omegas = np.linspace(0.15, 2.0, 38)
+    omegas = np.linspace(0.15, 2.0, 75)
     headings = np.radians([90.0, 120.0, 150.0, 180.0])
     test_matrix = xr.Dataset(coords={"omega": omegas, "wave_direction": headings,
                                      "radiating_dof": list(body.dofs),

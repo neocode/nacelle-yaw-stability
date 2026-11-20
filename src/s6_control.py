@@ -2,7 +2,7 @@
 Section 6: yaw control with tugger lines - stiffness versus damping.
 
 (1) Closed-loop divergence speed from the eigenvalues of the linearised
-    closed loop, for several derivative gains (numerical check of Eq. 27).
+    closed loop, for several derivative gains (numerical check of Eq. (24) of the paper).
 (2) Static closed-loop equilibrium with tugger saturation and a misaligned wind.
 (3) Time-domain closed-loop response at mating (wind + vessel), open vs closed.
 """
@@ -93,6 +93,42 @@ def run():
                 spx = d.spectral(L, mm, zeta, 12.0, 0.06, z, control=ctrl)
                 sens[f"{mname}|zeta={zeta}|ctrl={ctrl}"] = float(np.degrees(spx["sigma"]))
     out["zeta_sensitivity_U12"] = sens
+
+    # (4) first-order actuator lag tau: M_t = -(kp psi + kd psi')/(1 + tau s) --------
+    lag = {}
+    for L in (cm.L_mating, cm.L_liftoff):
+        s = cm.suspension(L)
+        c = 2 * 0.01 * np.sqrt(s.k_psi * cm.I_zz)
+        Ucl = U_div(s.k_psi, CK) * np.sqrt(1 + cm.k_p_nom / s.k_psi)
+        for tau in (0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 10.0):
+            worst = -np.inf
+            for U in np.linspace(0.0, 0.95 * Ucl, 60):
+                Ka = qASL(U) * CK
+                A = np.array([[0.0, 1.0, 0.0],
+                              [-(s.k_psi - Ka) / cm.I_zz, -c / cm.I_zz, 1.0 / cm.I_zz],
+                              [-cm.k_p_nom / tau, -cm.k_d_nom / tau, -1.0 / tau]])
+                worst = max(worst, float(np.max(np.linalg.eigvals(A).real)))
+            lag[f"L={int(L)}|tau={tau}"] = dict(max_real_eig=worst, stable=bool(worst < 0))
+        # critical lag at U = 12 m/s by bisection
+        def maxre(tau, U=12.0):
+            Ka = qASL(U) * CK
+            A = np.array([[0.0, 1.0, 0.0],
+                          [-(s.k_psi - Ka) / cm.I_zz, -c / cm.I_zz, 1.0 / cm.I_zz],
+                          [-cm.k_p_nom / tau, -cm.k_d_nom / tau, -1.0 / tau]])
+            return float(np.max(np.linalg.eigvals(A).real))
+        lo, hi = 0.01, 100.0
+        if maxre(hi) < 0:
+            tc = np.inf
+        else:
+            for _ in range(60):
+                mid = np.sqrt(lo * hi)
+                if maxre(mid) < 0:
+                    lo = mid
+                else:
+                    hi = mid
+            tc = hi
+        lag[f"L={int(L)}|tau_crit_U12"] = float(tc)
+    out["actuator_lag"] = lag
     with open(f"{cm.RES}/s6_control.json", "w") as fh:
         json.dump(out, fh)
     return out

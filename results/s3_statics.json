@@ -1679,6 +1679,102 @@
    0.12250000000000001
   ]
  },
+ "heading_zero_crossings": {
+  "Munk (BEM box)": [
+   45.0,
+   135.0
+  ],
+  "Munk (BEM box) | max": [
+   0.0,
+   0.496049068053189
+  ],
+  "box, mid": [
+   56.0,
+   123.00000000000001
+  ],
+  "box, mid | max": [
+   33.0,
+   0.10843989532394169
+  ],
+  "box, high": [
+   54.0,
+   125.00000000000001
+  ],
+  "box, high | max": [
+   28.0,
+   0.09796743757350554
+  ],
+  "box, low": [
+   57.00000000000001,
+   122.0
+  ],
+  "box, low | max": [
+   145.0,
+   0.09976082157365598
+  ]
+ },
+ "worst_heading": {
+  "box, mid | L=13": {
+   "U_fold_min": 60.893208717748884,
+   "theta_deg": 10.0,
+   "U_div_aligned": 89.5488363496307
+  },
+  "box, mid | L=60": {
+   "U_fold_min": 29.092281559531227,
+   "theta_deg": 10.0,
+   "U_div_aligned": 41.85939792738306
+  },
+  "box, mid | L=100": {
+   "U_fold_min": 23.10352197759846,
+   "theta_deg": 10.0,
+   "U_div_aligned": 32.540171799434454
+  },
+  "box, mid | L=150": {
+   "U_fold_min": 18.28051292255418,
+   "theta_deg": 12.5,
+   "U_div_aligned": 26.68688017891121
+  },
+  "box, high | L=13": {
+   "U_fold_min": 64.03201007333045,
+   "theta_deg": 5.0,
+   "U_div_aligned": 76.68504200398857
+  },
+  "box, high | L=60": {
+   "U_fold_min": 30.648541012867323,
+   "theta_deg": 5.0,
+   "U_div_aligned": 35.84624679867523
+  },
+  "box, high | L=100": {
+   "U_fold_min": 23.12856281187789,
+   "theta_deg": 7.5,
+   "U_div_aligned": 27.865738327563722
+  },
+  "box, high | L=150": {
+   "U_fold_min": 19.311020625269006,
+   "theta_deg": 7.5,
+   "U_div_aligned": 22.853278846472197
+  },
+  "box, low | L=13": {
+   "U_fold_min": 65.2360471592792,
+   "theta_deg": 12.5,
+   "U_div_aligned": 116.49294135585569
+  },
+  "box, low | L=60": {
+   "U_fold_min": 29.405353289124374,
+   "theta_deg": 15.0,
+   "U_div_aligned": 54.45435794282291
+  },
+  "box, low | L=100": {
+   "U_fold_min": 23.28210241267017,
+   "theta_deg": 15.0,
+   "U_div_aligned": 42.331095295763944
+  },
+  "box, low | L=150": {
+   "U_fold_min": 19.61489184366148,
+   "theta_deg": 15.0,
+   "U_div_aligned": 34.71662273214421
+  }
+ },
  "branches": {
   "Munk (BEM box) | L=100": {
    "perfect": [

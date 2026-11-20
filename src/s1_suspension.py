@@ -2,7 +2,7 @@
 Section 3: torsional restoring moment of a multi-fall suspension.
 
 (1) Closed-form exact moment for an arbitrary fall arrangement and tension
-    distribution (Eq. 9 of the revised manuscript).
+    distribution (Eqs. (3)-(5) of the paper).
 (2) Independent numerical check: full static equilibrium of a rigid lower
     block hanging on n straight falls (6 unknowns: block position, roll,
     pitch and rope tension; yaw prescribed), solved with Newton iterations.
@@ -133,7 +133,7 @@ def run():
                     k_num_small=float(-Mnum[0] / np.sin(psis[0])))
     out["moment_cases"] = cases
 
-    # ---------------- arc (original Eq. 5) vs chord (exact) restoring moment
+    # ---------------- arc approximation vs chord (exact) restoring moment
     L = cm.L_ref
     r = 1.2
     ps = np.radians(np.linspace(0, 120, 121))

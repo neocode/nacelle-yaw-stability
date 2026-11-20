@@ -1,7 +1,7 @@
 """
 Shared parameters, derived quantities and figure style for the revised study.
 
-Every baseline value is listed in Table 1 of the revised manuscript together
+Every baseline value is listed in Table 1 of the paper together
 with its source.  Values marked ASSUMED are engineering assumptions and are
 varied in the parameter studies.
 """

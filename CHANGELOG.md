@@ -1,5 +1,22 @@
 # Changelog
 
+## 2.1.0 (2026-11-20)
+
+Revision after an independent review of the paper.
+
+### Added
+- Gust-gradient moment: the aerodynamic damping acts on the rotation rate relative to the wind direction (strip theory, frozen turbulence) in the spectral and time-domain models.
+- Pendulum damping (baseline 2 % of critical) and a linear aerodynamic side force on the payload; sensitivity to the pendulum damping.
+- Lift-off curves of the turbulent response (height-dependent turbulence length scale).
+- Expected largest yaw in a 20-min window (narrow-band peak factor).
+- Worst wind direction of the bluff-body fit (fold of the primary equilibrium) and zero crossings of the aerodynamic stiffness.
+- Principal parametric resonance (Floquet) and time-domain swell test at twice the yaw frequency.
+- First-order actuator lag of the tugger loop.
+- Finer frequency grid of the vessel BEM computation.
+
+### Changed
+- Figures 3(b), 4(b), 5(b), 6 and 7(c) revised.
+
 ## 2.0.0 (2026-11-06)
 
 Code for the revised paper. The analysis was rewritten around a reduced yaw model and closed-form results; the earlier six-degree-of-freedom plant is kept for verification.

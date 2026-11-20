@@ -18,9 +18,9 @@ Every number, table and figure of the paper is produced by the scripts in `src/`
 | `src/aero_models.py` | 4.1 | potential-flow (Munk) and sharp-edged-box yaw-moment models; divergence speed | – |
 | `src/s3_statics.py` | 4.2–4.4, Table 3, Figs. 4–5 | divergence speed along the lift; wind-heading dependence; all equilibria and their stability with the complete moment balance | `results/s3_statics.json` |
 | `src/s4_vessel.py` | 5.3, Table 4, Fig. 7(a–c) | crane-vessel hydrodynamics (Capytaine), RAOs, boom-tip motions | `results/s4_vessel.json` |
-| `src/s5_dynamics.py` | 5, Figs. 6, 7(d) | spectral and time-domain yaw response to turbulent wind; vessel coupling; Floquet analysis of heave-induced parametric excitation | `results/s5_dynamics.json` |
-| `src/s5b_checks.py` | 5.3, 7.2 | time-step convergence; attribution of the vessel coupling paths | `results/s5b_checks.json` |
-| `src/s6_control.py` | 6, Fig. 8 | closed-loop divergence speed (eigenvalues), tugger saturation, closed-loop response | `results/s6_control.json` |
+| `src/s5_dynamics.py` | 5, Figs. 6, 7(d) | spectral and time-domain yaw response to turbulent wind (including the gust-gradient moment); expected largest yaw; vessel coupling; Floquet analysis of heave-induced parametric excitation | `results/s5_dynamics.json` |
+| `src/s5b_checks.py` | 5.3, 7.2 | time-step convergence; attribution of the vessel coupling paths; swell at twice the yaw frequency | `results/s5b_checks.json` |
+| `src/s6_control.py` | 6, Fig. 8 | closed-loop divergence speed (eigenvalues), actuator lag, tugger saturation, closed-loop response | `results/s6_control.json` |
 | `src/s7_verify_6dof.py` | 7.2, Fig. 9(a) | reduced yaw model vs six-degree-of-freedom rigid-body model (`src/legacy_6dof/`) | `results/s7_verify_6dof.json` |
 | `src/make_figures.py`, `src/fig1_schematic.py`, `src/graphical_abstract.py` | all figures | figures from the stored results | `figures/` |
 
@@ -76,4 +76,4 @@ See `CHANGELOG.md`.
 
 ## Licence
 
-MIT, see `LICENSE`. If you use this code, please cite the paper and this repository (`CITATION.cff`). Archived version 2.0.0: https://doi.org/10.5281/zenodo.24403653 (all versions: https://doi.org/10.5281/zenodo.24403652).
+MIT, see `LICENSE`. If you use this code, please cite the paper and this repository (`CITATION.cff`). Archive of all versions: https://doi.org/10.5281/zenodo.24403652 (version 2.0.0: https://doi.org/10.5281/zenodo.24403653).

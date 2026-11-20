@@ -125,6 +125,11 @@ def panel_b(ax):
     th = np.radians(-30)
     w0 = np.array([2.7, -0.2]); w1 = w0 + 0.8 * np.array([-np.cos(th), -np.sin(th)])
     arrow(ax, tuple(w0), tuple(w1), color=C3, lw=1.2, ms=9)
+    # theta: angle between the reference heading (y axis of the crane) and the wind direction
+    ax.plot([w1[0], w1[0]], [w1[1], w1[1] + 0.55], color=C3, lw=0.6, ls=":")
+    ang_w = np.degrees(np.arctan2(w0[1] - w1[1], w0[0] - w1[0]))
+    ax.add_patch(Arc(tuple(w1), 0.6, 0.6, theta1=min(90, ang_w), theta2=max(90, ang_w), color=C3, lw=0.7))
+    ax.text(w1[0] + 0.12, w1[1] + 0.33, r"$\theta$", fontsize=7, color=C3)
     ax.text(2.35, -0.55, "mean wind\n" r"(direction $\theta$;" "\n" r"incidence $\beta=\psi-\theta$)",
             fontsize=5.8, color=C3, ha="center", va="top")
     ax.plot([-2.55], [2.3], marker="o", mfc="white", mec=C1, ms=4, ls="none")
@@ -133,6 +138,8 @@ def panel_b(ax):
     ax.text(-2.42, 2.08, r"lower fall ends $\mathbf{R}\mathbf{b}_i$", fontsize=6.0, va="center")
     ax.plot([-2.6, -2.48], [1.86, 1.86], color=C2, lw=0.8)
     ax.text(-2.42, 1.86, "fall offset (chord)", fontsize=6.0, va="center")
+    ax.plot([-2.6, -2.48], [1.64, 1.64], color=C4, lw=2.0, alpha=0.6)
+    ax.text(-2.42, 1.64, "sheave (lower block)", fontsize=6.0, va="center")
     ax.text(1.25, 2.3, "plan view; payload outline\nshaded; sheave pitch\nexaggerated for clarity",
             fontsize=5.8, color=INK2, va="top")
 
