@@ -1,5 +1,7 @@
 # nacelle-yaw-stability
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24403652.svg)](https://doi.org/10.5281/zenodo.24403652)
+
 Code, data and figures for the paper
 
 > S. Podliesnyi, O. Sheremet. *Yaw stability of a nacelle suspended from a multi-fall offshore crane hoist: gravitational torsional stiffness and wind-induced static divergence.*
@@ -74,4 +76,4 @@ See `CHANGELOG.md`.
 
 ## Licence
 
-MIT, see `LICENSE`. If you use this code, please cite the paper and this repository (`CITATION.cff`).
+MIT, see `LICENSE`. If you use this code, please cite the paper and this repository (`CITATION.cff`). Archived version 2.0.0: https://doi.org/10.5281/zenodo.24403653 (all versions: https://doi.org/10.5281/zenodo.24403652).
