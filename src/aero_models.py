@@ -13,6 +13,7 @@ C_K = c'(0) is the non-dimensional aerodynamic yaw stiffness.
 import json
 import numpy as np
 import common as cm
+import wind_tunnel_data as wt
 
 r_WL = cm.W_n / cm.L_n
 
@@ -41,9 +42,12 @@ class Munk:
     def K3_over_K(self):
         return 2.0 / 3.0
 
+    def fourier(self):
+        return np.array([0.5 * self.CK]), 0.0
+
 
 class BluffBox:
-    """Sharp-edged rectangular box, Greenwell (ICAS 2008; Aeronaut J 2011) attached-flow fit (Eq. (12) of the paper) to
+    """Sharp-edged rectangular box, Greenwell (ICAS 2008; Aeronaut J 2011) fit to
     NASA TM-X 62169 and Technion TAE-844 data):
         c(beta) = c_s (1-(W/L)^2) sin 2beta - c_a (W/L) sin 4beta
     plus the moment of the body-axis side force C_Y = C_Yb sin(beta) (Greenwell
@@ -72,6 +76,67 @@ class BluffBox:
         K3 = (self.cs * (1 - r_WL ** 2) * 8 / 6 - self.ca * r_WL * 64 / 6
               - self.CYb * self.xs / cm.L_n / 6)
         return K3 / self.CK
+
+    def fourier(self):
+        return (np.array([self.cs * (1 - r_WL ** 2), -self.ca * r_WL]),
+                self.CYb * self.xs / cm.L_n)
+
+
+class MeasuredBox:
+    """Sharp-edged box, sine-series fit to the measured moments of the 2.5:1 box
+    (container and smooth-sided box, NASA TM-X-62169; wind_tunnel_data.py):
+        c(beta) = sum_k a_k sin(2 k beta) - C_Yb (x_s / L) sin(beta)
+    The last term is the moment of the body-axis side force when the suspension
+    axis lies x_s upwind of the geometric centre (as in BluffBox)."""
+    name = "sharp-edged box (measured)"
+
+    def __init__(self, K=wt.K_NOMINAL, xs=0.0, CYb=1.35):
+        self.a = wt.fit(K)[0]
+        self.k = np.arange(1, len(self.a) + 1)
+        self.K, self.xs, self.CYb = K, xs, CYb
+        self.CK = float(self.dc(0.0))
+
+    def c(self, beta):
+        b = np.asarray(beta, float)
+        out = np.zeros_like(b)
+        for k, a in zip(self.k, self.a):
+            out = out + a * np.sin(2 * k * b)
+        return out - self.CYb * self.xs / cm.L_n * np.sin(b)
+
+    def dc(self, beta):
+        b = np.asarray(beta, float)
+        out = np.zeros_like(b)
+        for k, a in zip(self.k, self.a):
+            out = out + 2 * k * a * np.cos(2 * k * b)
+        return out - self.CYb * self.xs / cm.L_n * np.cos(b)
+
+    def fourier(self):
+        return self.a.copy(), self.CYb * self.xs / cm.L_n
+
+
+def ref_slope(model):
+    """Aerodynamic stiffness coefficient c'(-theta0) at psi = 0 for the mean wind
+    direction theta0 assigned to the model (attribute theta0, default 0)."""
+    return float(model.dc(-getattr(model, "theta0", 0.0)))
+
+
+def zero_near_max_slope(model):
+    """Incidence of the zero of c(beta) nearest to the steepest destabilising slope:
+    a wind from this direction exerts no moment on the aligned payload."""
+    from scipy.optimize import brentq
+    bm = max_slope(model)[1]
+    if bm == 0.0:
+        return 0.0
+    return float(brentq(lambda b: float(model.c(b)), bm - 0.2, bm + 0.2))
+
+
+def max_slope(model, beta_max=np.pi / 2):
+    """Largest destabilising slope c'(beta) over wind directions and the
+    incidence at which it occurs [rad]."""
+    b = np.linspace(0.0, beta_max, 9001)
+    d = model.dc(b)
+    i = int(np.argmax(d))
+    return float(d[i]), float(b[i])
 
 
 def U_div(k_psi, CK):

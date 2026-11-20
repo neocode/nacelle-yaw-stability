@@ -5,13 +5,13 @@
 import json
 import numpy as np
 import common as cm
-from aero_models import Munk, BluffBox, U_div
+from aero_models import Munk, U_div
 import s5_dynamics as d
 from s3_statics import z_payload
 
 out = {}
 m = Munk(json.load(open(f"{cm.RES}/s2_aero_bem.json"))["CK"]["bem_box"])
-box = BluffBox(0.09, 0.04)
+box = d.box_model()
 
 # (1) time-step convergence --------------------------------------------------
 L = cm.L_ref; z = z_payload(L)

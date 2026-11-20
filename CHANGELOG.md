@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.2.0 (2026-11-20)
+
+### Added
+- Measured static yawing moments of rectangular boxes (NASA TM-X-62169: cargo containers and smooth-sided boxes, aspect ratios 1, 2.5 and 5), digitised in `wind_tunnel_data.py`.
+- Sharp-edged-box moment model fitted to the 2.5:1 box data (sine series, orders 4-7); it replaces the Greenwell fit in all analyses. A wind along the axis is stabilising; the steepest destabilising slope is about 18 deg off the axis.
+- Critical speed for the most destabilising wind direction; primary equilibrium followed exactly with the yaw as parameter.
+- Two-way coupling of the crane vessel with the pendulum of the suspended load: coupled RAOs, coupled natural periods, comparison with the one-way model. The time-domain simulations use the coupled boom-tip motion.
+
+### Changed
+- Vessel BEM on a finer frequency grid (0.005 rad/s).
+- Time factor of the BEM RAOs taken into account in the synthesis of the vessel motion.
+- Figures 3-7 revised.
+
 ## 2.1.0 (2026-11-20)
 
 Revision after an independent review of the paper.

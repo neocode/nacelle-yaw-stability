@@ -18,7 +18,7 @@ import time
 import numpy as np
 from numba import njit
 import common as cm
-from aero_models import Munk, BluffBox, U_div
+from aero_models import Munk, MeasuredBox, U_div, ref_slope, zero_near_max_slope
 from s3_statics import Z_BLOCK_CG, z_payload
 
 CDA = 1.05 * cm.W_n * cm.H_n        # m^2  end-on drag area of the payload
@@ -50,15 +50,27 @@ def turbulence(seed, T, dt, U, TI, z):
     return out[0], out[1]
 
 
-def vessel_inputs(seed, T, dt, heading_deg=150.0, Hs=cm.Hs, Tp=cm.Tp):
+_V = {}
+
+
+def vessel_inputs(seed, T, dt, heading_deg=150.0, Hs=cm.Hs, Tp=cm.Tp, coupled_L=None):
     """Boom-tip horizontal motion and velocity, vertical acceleration and vessel
-    yaw [rad] from the BEM RAOs and a JONSWAP sea (random phases)."""
-    with open(f"{cm.RES}/s4_vessel.json") as fh:
-        V = json.load(fh)
+    yaw [rad] from the BEM RAOs and a JONSWAP sea (random phases).
+    coupled_L: fall length of the two-way coupled vessel-pendulum solution whose
+    RAOs are used (None: one-way RAOs of the vessel alone)."""
+    if not _V:
+        with open(f"{cm.RES}/s4_vessel.json") as fh:
+            _V.update(json.load(fh))
+    V = _V
     w_r = np.array(V["omega"])
     j = V["headings_deg"].index(min(V["headings_deg"], key=lambda h: abs(h - heading_deg)))
-    rao = np.array(V["rao_re"])[:, j, :] + 1j * np.array(V["rao_im"])[:, j, :]
-    tip = np.array(V["tip_re"])[:, j, :] + 1j * np.array(V["tip_im"])[:, j, :]
+    src = V
+    if coupled_L is not None:
+        Lk = min(V["coupled"], key=lambda k: abs(float(k) - coupled_L))
+        src = V["coupled"][Lk]
+    # BEM RAOs use the time factor exp(-i w t); the synthesis below uses exp(+i w t)
+    rao = np.conj(np.array(src["rao_re"])[:, j, :] + 1j * np.array(src["rao_im"])[:, j, :])
+    tip = np.conj(np.array(src["tip_re"])[:, j, :] + 1j * np.array(src["tip_im"])[:, j, :])
     rng = np.random.default_rng(10_000 + seed)
     n = int(round(T / dt))
     dw = 2 * np.pi / T
@@ -91,23 +103,26 @@ def vessel_inputs(seed, T, dt, heading_deg=150.0, Hs=cm.Hs, Tp=cm.Tp):
 
 
 # --------------------------------------------------------------- integrator
+NF = 8    # number of sine coefficients of the moment curve
+
+
 @njit(cache=True)
-def _aero_c(beta, kind, cs, ca, cyx, CK):
-    """kind 0: Munk  c = CK/2 sin2b ; kind 1: box fit."""
-    if kind == 0:
-        return 0.5 * CK * np.sin(2 * beta)
-    r = 0.5
-    return cs * (1 - r * r) * np.sin(2 * beta) - ca * r * np.sin(4 * beta) - cyx * np.sin(beta)
+def _aero_c(beta, P):
+    """c(beta) = sum_k a_k sin(2 k beta) - cyx sin(beta); a_k = P[23:23+NF], cyx = P[13]."""
+    c = -P[13] * np.sin(beta)
+    for k in range(NF):
+        c += P[23 + k] * np.sin(2 * (k + 1) * beta)
+    return c
 
 
-NP = 22   # length of the parameter vector
+NP = 23 + NF   # length of the parameter vector
 
 
 @njit(cache=True)
 def _rhs(s, U, q, P):
     # q (inputs): [u, v, xt, yt, azt, psv, dpsv, dth, dxt, dyt]
-    # P: [k, I, c_s, c_a, Mr, m, W, lp, rhoAsL_half, CDA_half_rho, kind, cs, ca, cyx, CK,
-    #     kp, kd, Mt_max, psi_ref, ctrl, c_pend, side_half_rho]
+    # P: [k, I, c_s, c_a, Mr, m, W, lp, rhoAsL_half, CDA_half_rho, kind, -, -, cyx, K_ref,
+    #     kp, kd, Mt_max, psi_ref, ctrl, c_pend, side_half_rho, theta0, a_1..a_NF]
     psi, dpsi, x, dx, y, dy = s[0], s[1], s[2], s[3], s[4], s[5]
     u, v, xt, yt, azt, psv, dpsv, dth, dxt, dyt = q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], q[8], q[9]
     k = P[0]; I = P[1]
@@ -115,8 +130,8 @@ def _rhs(s, U, q, P):
     uy = v - dy
     sp2 = ux * ux + uy * uy
     th = np.arctan2(uy, ux)
-    beta = psi - th
-    Ma = P[8] * sp2 * _aero_c(beta, int(P[10]), P[11], P[12], P[13], P[14])
+    beta = psi - th - P[22]
+    Ma = P[8] * sp2 * _aero_c(beta, P)
     fac = 1.0 + azt / 9.80665
     Mt = 0.0
     if P[19] > 0.5:
@@ -181,16 +196,17 @@ def params_vector(L, model, zeta_s, U, control=False, kp=cm.k_p_nom, kd=cm.k_d_n
     if (kind == 1 and aero_damping) or aero_damping_munk:
         # quasi-steady strip estimate of the yaw damping of a box with linear side force
         c_a = cm.rho_air * U * cm.H_n * cm.L_n ** 3 * CYB / 24.0
-    cs_ = getattr(model, "cs", 0.0); ca_ = getattr(model, "ca", 0.0)
-    cyx = getattr(model, "CYb", 0.0) * getattr(model, "xs", 0.0) / cm.L_n
+    a, cyx = model.fourier()
+    af = np.zeros(NF)
+    af[:len(a)] = a
     m = cm.m_p + cm.m_hb
     lp = L + Z_BLOCK_CG
     c_p = 2 * zeta_p * m * np.sqrt(cm.g / lp)
-    return np.array([s.k_psi, cm.I_zz, c_s, c_a, s.M_r if rope else 0.0, m, s.W_load,
-                     lp, 0.5 * cm.rho_air * cm.A_side * cm.L_n,
-                     0.5 * cm.rho_air * CDA, kind, cs_, ca_, cyx, model.CK,
-                     kp, kd, cm.M_t_max, 0.0, 1.0 if control else 0.0,
-                     c_p, 0.5 * cm.rho_air * cm.A_side * CYB])
+    return np.r_[s.k_psi, cm.I_zz, c_s, c_a, s.M_r if rope else 0.0, m, s.W_load,
+                 lp, 0.5 * cm.rho_air * cm.A_side * cm.L_n,
+                 0.5 * cm.rho_air * CDA, kind, 0.0, 0.0, cyx, ref_slope(model),
+                 kp, kd, cm.M_t_max, 0.0, 1.0 if control else 0.0,
+                 c_p, 0.5 * cm.rho_air * cm.A_side * CYB, getattr(model, "theta0", 0.0), af]
 
 
 def static_equilibrium(P, U):
@@ -201,8 +217,7 @@ def static_equilibrium(P, U):
     # continuation in U (a fold of the primary branch returns NaN)
     psi = np.arcsin(min(Mr / k, 1.0))
     for Ui in np.linspace(0.0, U, 41)[1:]:
-        g = lambda p: (-k * np.sin(p) + P[8] * Ui ** 2 * float(_aero_c(p, int(P[10]), P[11], P[12],
-                                                                       P[13], P[14])) + Mr
+        g = lambda p: (-k * np.sin(p) + P[8] * Ui ** 2 * float(_aero_c(p - P[22], P)) + Mr
                        + (-(P[15]) * p if P[19] > 0.5 else 0.0))
         grid = np.linspace(psi - 0.15, psi + 0.15, 301)
         G = np.array([g(x) for x in grid])
@@ -222,8 +237,9 @@ def spectral(L, model, zeta_s, U, TI, z, control=False, kp=cm.k_p_nom, kd=cm.k_d
     k, I, c_s, c_a = P[0], P[1], P[2], P[3]
     psib = static_equilibrium(P, U)
     qasl = P[8] * U ** 2
-    dc = model.dc(psib)
-    cval = model.c(psib)
+    th0 = getattr(model, "theta0", 0.0)
+    dc = float(model.dc(psib - th0))
+    cval = float(model.c(psib - th0))
     Ka = qasl * dc
     keff = k * np.cos(psib) - Ka + (kp if control else 0.0)
     ctot = c_s + c_a + (kd if control else 0.0)
@@ -261,8 +277,9 @@ def spectral(L, model, zeta_s, U, TI, z, control=False, kp=cm.k_p_nom, kd=cm.k_d
 
 def simulate(L, model, zeta_s, U, TI, z, seeds, T=4200.0, burn=600.0, dt=0.05,
              vessel=False, heading=150.0, control=False, kp=cm.k_p_nom, kd=cm.k_d_nom,
-             rope=True, Hs=cm.Hs, Tp=cm.Tp, zeta_p=ZETA_P, only=None):
-    """Time-domain runs. only: restrict the vessel input to 'yaw', 'horiz' or 'heave'."""
+             rope=True, Hs=cm.Hs, Tp=cm.Tp, zeta_p=ZETA_P, only=None, two_way=True):
+    """Time-domain runs. only: restrict the vessel input to 'yaw', 'horiz' or 'heave'.
+    two_way: boom-tip motion from the coupled vessel-pendulum solution."""
     P = params_vector(L, model, zeta_s, U, control, kp, kd, rope, zeta_p=zeta_p)
     psib = static_equilibrium(P, U)
     stats = []
@@ -272,7 +289,8 @@ def simulate(L, model, zeta_s, U, TI, z, seeds, T=4200.0, burn=600.0, dt=0.05,
         u, v = turbulence(sd, T, dt, U, TI, z)
         dth = np.gradient(np.arctan2(v, U + u), dt)
         if vessel:
-            xt, yt, azt, psv, dpsv, dxt, dyt = vessel_inputs(sd, T, dt, heading, Hs, Tp)
+            xt, yt, azt, psv, dpsv, dxt, dyt = vessel_inputs(sd, T, dt, heading, Hs, Tp,
+                                                             L if two_way else None)
             if only == "yaw":
                 xt = yt = azt = dxt = dyt = Z
             elif only == "horiz":
@@ -321,12 +339,29 @@ def floquet_max_multiplier(keff, k, I, c, eps, we, nsteps=400):
     return float(np.max(np.abs(np.linalg.eigvals(Phi))))
 
 
+def box_model(**kw):
+    """Measured sharp-edged box with the mean wind at the zero of c(beta) next to the
+    steepest destabilising slope (about 20 deg off the payload axis): the wind then
+    exerts no mean moment on the aligned payload.  The side is chosen so that the
+    rope-torque twist moves the incidence towards the steepest slope."""
+    m = MeasuredBox(**kw)
+    m.theta0 = +zero_near_max_slope(m)
+    return m
+
+
+def U_ref(L, model):
+    """Critical speed of the model at its mean wind direction (U_div for Munk)."""
+    return U_div(cm.suspension(L).k_psi, ref_slope(model))
+
+
 def run(quick=False):
     t0 = time.time()
     res = {}
     with open(f"{cm.RES}/s2_aero_bem.json") as fh:
         CKd = json.load(fh)["CK"]
-    models = {"munk": Munk(CKd["bem_box"]), "box": BluffBox(0.09, 0.04)}
+    models = {"munk": Munk(CKd["bem_box"]), "box": box_model()}
+    res["box_theta0_deg"] = float(np.degrees(models["box"].theta0))
+    res["box_ref_slope"] = ref_slope(models["box"])
     seeds = list(range(8 if quick else 20))
     configs = {"mating": cm.L_mating, "long": cm.L_ref, "liftoff": cm.L_liftoff}
 
@@ -335,7 +370,7 @@ def run(quick=False):
     L = cm.L_ref
     z = z_payload(L)
     m = models["munk"]
-    Ud = U_div(cm.suspension(L).k_psi, m.CK)
+    Ud = U_ref(L, m)
     U = 0.5 * Ud
     for dt in (0.2, 0.1, 0.05, 0.025):
         st = simulate(L, m, 0.01, U, 0.06, z, seeds[:4], dt=dt, rope=False)
@@ -355,7 +390,7 @@ def run(quick=False):
         z = z_payload(L)
         kpsi = cm.suspension(L).k_psi
         for mname, m in models.items():
-            Ud = U_div(kpsi, m.CK)
+            Ud = U_ref(L, m)
             for TI in cm.TI_values:
                 for zeta in cm.zeta_values:
                     key = f"{cname}|{mname}|TI={TI}|zeta={zeta}"
@@ -385,7 +420,7 @@ def run(quick=False):
         z = z_payload(L)
         for mname, m in models.items():
             for U in (8.0, 12.0):
-                if U >= U_div(cm.suspension(L).k_psi, m.CK):
+                if U >= U_ref(L, m):
                     continue
                 zs = np.logspace(np.log10(0.002), np.log10(0.05), 9)
                 sig = [spectral(L, m, zz, U, 0.06, z)["sigma"] for zz in zs]
@@ -445,6 +480,10 @@ def run(quick=False):
                     sway_angle_v=summarize(st1, "sway_angle_std"),
                     sway_angle_Hs3=summarize(st2, "sway_angle_std"))
                 if hd == 120.0:
+                    st4 = simulate(L, m, 0.01, U, 0.06, z, seeds[:10], vessel=True, heading=hd,
+                                   two_way=False)
+                    row["vessel_one_way"] = summarize(st4, "std")
+                    row["sway_v_one_way"] = summarize(st4, "sway_std")
                     for zp in (0.002, 0.05):
                         st3 = simulate(L, m, 0.01, U, 0.06, z, seeds[:10], vessel=True, heading=hd,
                                        zeta_p=zp)
@@ -461,7 +500,7 @@ def run(quick=False):
         s = cm.suspension(L)
         for mname, m in models.items():
             for U in (0.0, 8.0, 12.0):
-                Ka = 0.5 * cm.rho_air * U ** 2 * cm.A_side * cm.L_n * m.CK
+                Ka = 0.5 * cm.rho_air * U ** 2 * cm.A_side * cm.L_n * ref_slope(m)
                 P = params_vector(L, m, 0.01, U)
                 ctot = P[2] + P[3]
                 w = 2 * np.pi * f

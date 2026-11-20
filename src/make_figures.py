@@ -65,59 +65,71 @@ def fig2():
 
 # ------------------------------------------------------------------ Fig. 3
 def fig3():
+    import wind_tunnel_data as wt
+    from aero_models import MeasuredBox
     s2 = R("s2_aero_bem")
+    s3 = R("s3_statics")
     CK = s2["CK"]
-    fig, ax = plt.subplots(1, 2, figsize=(cm.W2, 2.45), gridspec_kw=dict(width_ratios=[1.05, 1]))
+    ck, ms = s3["CK"], s3["max_slope"]
+    fits = ("box",) + tuple(f"box, K={K}" for K in (4, 5, 6, 7) if K != wt.K_NOMINAL)
+    fig, ax = plt.subplots(1, 2, figsize=(cm.W2, 3.05), gridspec_kw=dict(width_ratios=[1.0, 1]))
     a = ax[0]
     rows = [
-        ("prolate spheroid (Lamb)", CK["munk_spheroid_own_volume"], None, C1),
-        ("superellipsoid, N = 4 (BEM)", CK["bem_superellipsoid_n4"], None, C1),
-        ("superellipsoid, N = 8 (BEM)", CK["bem_superellipsoid_n8"], None, C1),
-        ("rectangular box (BEM)", CK["bem_box"], None, C1),
-        ("sharp-edged box, wind tunnel", CK["box_empirical_mid"],
-         (CK["box_empirical_low"], CK["box_empirical_high"]), C2),
-        (r"  + suspension axis 1 m downwind", 0.055 + 1.35 / 20, None, C2),
-        (r"  + suspension axis 1 m upwind", 0.055 - 1.35 / 20, None, C2),
+        ("prolate spheroid (Lamb)", CK["munk_spheroid_own_volume"], None, C1, "o"),
+        ("superellipsoid, N = 4 (BEM)", CK["bem_superellipsoid_n4"], None, C1, "o"),
+        ("superellipsoid, N = 8 (BEM)", CK["bem_superellipsoid_n8"], None, C1, "o"),
+        ("rectangular box (BEM)", CK["bem_box"], None, C1, "o"),
+        ("wind along the axis, $C_K$", ck["box"], [ck[f] for f in fits], C2, "s"),
+        (rf"steepest slope ({ms['box'][1]:.0f}° off the axis)", ms["box"][0],
+         [ms[f][0] for f in fits], C2, "D"),
+        (r"  + suspension axis 1 m downwind", ms["box, x_s=-1 m"][0], None, C2, "D"),
+        (r"  + suspension axis 1 m upwind", ms["box, x_s=+1 m"][0], None, C2, "D"),
     ]
     y = np.arange(len(rows))[::-1]
-    for yi, (lab, v, rng, col) in zip(y, rows):
+    for yi, (lab, v, rng, col, mk) in zip(y, rows):
         if rng:
-            a.plot(rng, [yi, yi], color=col, lw=2.2, solid_capstyle="round", alpha=0.45)
-        mk = "o" if col == C1 else "s"
-        a.plot([v], [yi], marker=mk, color=col, ms=5.5, mec="white", mew=0.7, ls="none")
-        a.text(0.62, yi, f"{v:.3f}", va="center", ha="right", fontsize=6.5, color=INK2)
+            a.plot([min(rng), max(rng)], [yi, yi], color=col, lw=2.2, solid_capstyle="round", alpha=0.45)
+        a.plot([v], [yi], marker=mk, color=col, ms=5.0, mec="white", mew=0.7, ls="none")
+        a.text(0.80, yi, f"{v:+.3f}", va="center", ha="right", fontsize=6.4, color=INK2)
     a.axvline(0, color=INK2, lw=0.6)
     a.set_yticks(y)
-    a.set_yticklabels([r[0] for r in rows], fontsize=6.8)
-    a.set_xlim(-0.05, 0.63)
-    a.set_xlabel(r"aerodynamic yaw-stiffness coefficient $C_K$")
+    a.set_yticklabels([r[0] for r in rows], fontsize=6.6)
+    a.set_xlim(-0.5, 0.81)
+    a.set_xticks([-0.4, -0.2, 0, 0.2, 0.4, 0.6])
+    a.set_xlabel(r"aerodynamic stiffness coefficient $c'$")
     a.grid(axis="y", visible=False)
-    a.text(0.12, y[1] + 0.0, "potential flow", color=C1, fontsize=7, ha="center", va="center")
-    a.text(0.30, y[5] + 0.0, "separated\n(bluff-body) flow", color=C2, fontsize=7, ha="center", va="center")
-    a.set_ylim(-0.6, len(rows) - 0.1)
-    panel_label(a, "a", x=-0.62)
-    # (b) moment curves
+    a.text(-0.25, y[1], "potential flow\n(wind along axis)", color=C1, fontsize=6.5, ha="center", va="center")
+    a.text(-0.25, y[6] - 0.5, "sharp-edged box,\nwind-tunnel data", color=C2, fontsize=6.5, ha="center",
+           va="center")
+    a.text(0.02, -0.75, r"$\leftarrow$ stabilising   destabilising $\rightarrow$", fontsize=5.8, color=INK2,
+           ha="center", va="center")
+    a.set_ylim(-1.1, len(rows) - 0.4)
+    panel_label(a, "a", x=-0.85)
+    # (b) moment curves and data
     b = ax[1]
     be = np.linspace(0, 90, 361)
     br = np.radians(be)
-    r = 0.5
-    b.plot(be, 0.5 * CK["bem_box"] * np.sin(2 * br), color=C1, lw=1.4,
-           label="potential flow, box (Munk)")
-    fam = np.array([cs_ * (1 - r ** 2) * np.sin(2 * br) - ca_ * r * np.sin(4 * br)
-                    for cs_ in np.linspace(0.075, 0.09, 7) for ca_ in np.linspace(0.03, 0.04, 7)])
-    mid = 0.09 * (1 - r ** 2) * np.sin(2 * br) - 0.04 * r * np.sin(4 * br)
-    b.fill_between(be, fam.min(axis=0), fam.max(axis=0), color=C2, alpha=0.25, lw=0)
-    b.plot(be, mid, color=C2, lw=1.4, ls="--", label=r"sharp-edged box fit, Eq. (12) ($c_s$=0.09, $c_a$=0.04)")
-    b.axvspan(20, 90, color=GRID, alpha=0.45, lw=0)
-    b.text(56, 0.008, "fit extrapolated beyond\nthe attached-flow range", ha="center", va="bottom", fontsize=6.0, color=INK2)
     b.axhline(0, color=INK2, lw=0.6)
+    b.plot(be, 0.5 * CK["bem_box"] * np.sin(2 * br), color=C1, lw=1.4, label="potential flow, box (Munk)")
+    fam = np.array([MeasuredBox(K).c(br) for K in (4, 5, 6, 7)])
+    b.fill_between(be, fam.min(0), fam.max(0), color=C2, alpha=0.22, lw=0)
+    b.plot(be, MeasuredBox().c(br), color=C2, lw=1.4, label=r"fit to the 2.5:1 data ($K$ = 4–7)")
+    r = 0.5
+    b.plot(be, 0.09 * (1 - r ** 2) * np.sin(2 * br) - 0.04 * r * np.sin(4 * br), color=INK2, lw=0.9,
+           ls="--", label="Eq. (12), Greenwell fit")
+    for nm, mk, col, mf, lab in (("container 1", "s", C2, C2, "container, $L/W$ = 2.5"),
+                                 ("smooth box 1", "s", C2, "white", "smooth box, $L/W$ = 2.5"),
+                                 ("smooth box 3", "^", C3, "white", "smooth box, $L/W$ = 1"),
+                                 ("smooth box 2", "v", C5, "white", "smooth box, $L/W$ = 5")):
+        bb, cc = wt.corrected(nm)
+        b.plot(bb, cc, ls="none", marker=mk, ms=3.8, color=col, mfc=mf, mec=col, mew=0.8, label=lab)
     b.set_xlim(0, 90); b.set_xticks([0, 15, 30, 45, 60, 75, 90])
     b.set_xlabel(r"incidence $\beta$ (deg)")
     b.set_ylabel(r"$M_a/(q A_s L_n)$")
-    b.set_ylim(-0.01, 0.34)
-    b.legend(loc="upper center", fontsize=6.3, ncol=1)
+    b.set_ylim(-0.13, 0.27)
+    b.legend(loc="upper center", fontsize=5.6, ncol=2, bbox_to_anchor=(0.45, -0.25))
     panel_label(b, "b")
-    fig.tight_layout(w_pad=1.2)
+    fig.tight_layout(w_pad=1.0)
     save(fig, "Fig3_aero_coefficients")
     plt.close(fig)
 
@@ -130,20 +142,23 @@ def fig4():
     z = np.array(al["z_payload"])
     fig, ax = plt.subplots(1, 2, figsize=(cm.W2, 3.0))
     a = ax[0]
-    a.fill_between(L, al["box, low"], al["box, high"], color=C2, alpha=0.22, lw=0)
-    a.plot(L, al["box, mid"], color=C2, lw=1.4, ls="--", label="sharp-edged box")
-    a.plot(L, al["box, mid, x_s=-1 m"], color=C2, lw=1.0, ls=":", label=r"box, axis 1 m downwind")
+    import wind_tunnel_data as wt
+    band = np.array([al[f] for f in ("box",) + tuple(f"box, K={K}" for K in (4, 5, 6, 7)
+                                                     if K != wt.K_NOMINAL)])
+    a.fill_between(L, band.min(0), band.max(0), color=C2, alpha=0.22, lw=0)
+    a.plot(L, al["box"], color=C2, lw=1.4, ls="--",
+           label=rf"sharp-edged box, wind {s3['max_slope']['box'][1]:.0f}° off axis")
+    a.plot(L, al["box, x_s=-1 m"], color=C2, lw=1.0, ls=":", label=r"box, axis 1 m downwind")
     a.plot(L, al["Munk (spheroid)"], color=C3, lw=1.2, ls="-.", label="potential flow, spheroid")
     a.plot(L, al["Munk (BEM box)"], color=C1, lw=1.5, label="potential flow, box")
-    # wind at payload height for hub-height winds 10 and 15 m/s
-    for Uh, ls in ((10.0, "-"), (15.0, "-")):
+    for Uh in (10.0, 15.0):
         Uz = Uh * (z / cm.z_hub) ** cm.alpha_shear
-        a.plot(L, Uz, color=INK, lw=0.9, ls=ls)
+        a.plot(L, Uz, color=INK, lw=0.9)
         a.text(cm.L_mating + 2, Uz[0] - 0.7, rf"$U_{{hub}}$ = {Uh:.0f} m/s", ha="left", va="top", fontsize=6.3,
                color=INK)
-    a.set_xlim(cm.L_mating, 150); a.set_ylim(0, 60)
+    a.set_xlim(cm.L_mating, 150); a.set_ylim(0, 50)
     a.set_xlabel(r"fall length $L$ (m)  [mating $\rightarrow$ lift-off]")
-    a.set_ylabel(r"divergence speed $U_{div}$ (m/s)")
+    a.set_ylabel(r"critical wind speed $U_{div}$ (m/s)")
     a.plot([], [], color=INK, lw=0.9, label="mean wind at payload height")
     a.legend(loc="upper center", fontsize=6.0, ncol=2, bbox_to_anchor=(0.5, -0.22))
     sec = a.secondary_xaxis("top", functions=(lambda x: cm.z_payload(x), lambda x: cm.z_payload(x)))
@@ -155,14 +170,15 @@ def fig4():
     hd = s3["heading"]
     th = np.array(hd["theta_deg"])
     b.plot(th, np.array(hd["Munk (BEM box)"]), color=C1, lw=1.5, label="potential flow (Munk)")
-    b.plot(th, np.array(hd["box, mid"]), color=C2, lw=1.4, ls="--", label="sharp-edged box, centred axis")
-    b.plot(th, np.array(hd["box, mid, x_s=+1 m"]), color=C2, lw=1.0, ls=":",
+    b.plot(th, np.array(hd["box"]), color=C2, lw=1.4, ls="--", label="sharp-edged box, centred axis")
+    b.plot(th, np.array(hd["box, x_s=+1 m"]), color=C2, lw=1.0, ls=":",
            label=r"box, axis 1 m towards end A ($x_s$ = +1 m)")
+    b.plot(th, np.array(hd["box, Eq. (12)"]), color=INK2, lw=0.8, ls=(0, (4, 2)), label="Eq. (12)")
     b.axhline(0, color=INK2, lw=0.6)
-    b.text(75, 0.02, "destabilising", ha="center", va="bottom", fontsize=6.0, color=INK2)
-    b.text(75, -0.02, "stabilising", ha="center", va="top", fontsize=6.0, color=INK2)
+    b.text(90, 0.03, "destabilising", ha="center", va="bottom", fontsize=6.0, color=INK2)
+    b.text(90, -0.03, "stabilising", ha="center", va="top", fontsize=6.0, color=INK2)
     b.set_xlim(0, 180); b.set_xticks([0, 30, 45, 60, 90, 120, 135, 150, 180])
-    b.set_ylim(-0.55, 0.55)
+    b.set_ylim(-0.75, 0.6)
     b.set_xlabel(r"mean wind direction relative to payload axis $\theta$ (deg)")
     b.set_ylabel(r"$c'(-\theta)$")
     b.legend(loc="upper center", fontsize=6.0, ncol=2, bbox_to_anchor=(0.5, -0.22))
@@ -176,28 +192,24 @@ def fig4():
 def fig5():
     s3 = R("s3_statics")
     u = np.array(s3["u_grid"])
-    fig, ax = plt.subplots(1, 2, figsize=(cm.W2, 2.5), sharey=True)
-    for a, key, title, lab in ((ax[0], "Munk (BEM box) | L=100", "potential flow (Munk): supercritical", "a"),
-                               (ax[1], "box, mid | L=100", "box fit, extrapolated (illustrative): subcritical", "b")):
+    fig, ax = plt.subplots(1, 2, figsize=(cm.W2, 2.6))
+    th_box = s3["branches"]["box | L=100"]["theta_deg"]
+    for a, key, title, lab, ylim in (
+            (ax[0], "Munk (BEM box) | L=100", "potential flow (Munk), wind along the axis", "a", (-2, 92)),
+            (ax[1], "box | L=100", rf"sharp-edged box, wind {abs(th_box):.1f}° off the axis", "b", (-42, 30))):
         br = s3["branches"][key]
-        pts = np.array([(x, p, st) for x, p, st in br["perfect"]], dtype=object)
-        uu = np.array([p[0] for p in br["perfect"]], float)
-        pp = np.array([p[1] for p in br["perfect"]], float)
-        stt = np.array([p[2] for p in br["perfect"]], bool)
-        sel = (pp >= -1) & (pp <= 90)
-        a.plot(uu[sel & stt], pp[sel & stt], ls="none", marker="o", ms=1.6, color=C1)
-        a.plot(uu[sel & ~stt], pp[sel & ~stt], ls="none", marker="o", ms=1.0, color=C1, alpha=0.35)
-        # imperfect: all equilibria
-        uu2 = np.array([p[0] for p in br["imperfect"]], float)
-        pp2 = np.array([p[1] for p in br["imperfect"]], float)
-        st2 = np.array([p[2] for p in br["imperfect"]], bool)
-        sel2 = (pp2 >= -1) & (pp2 <= 90)
-        a.plot(uu2[sel2 & st2], pp2[sel2 & st2], ls="none", marker="s", ms=1.4, color=C2)
-        a.plot(uu2[sel2 & ~st2], pp2[sel2 & ~st2], ls="none", marker="s", ms=1.0, color=C2, alpha=0.35)
+        for arr, mk, col, msz in (("perfect", "o", C1, 1.6), ("imperfect", "s", C2, 1.4)):
+            uu = np.array([p[0] for p in br[arr]], float)
+            pp = np.array([p[1] for p in br[arr]], float)
+            st = np.array([p[2] for p in br[arr]], bool)
+            sel = (pp >= ylim[0]) & (pp <= ylim[1])
+            a.plot(uu[sel & st], pp[sel & st], ls="none", marker=mk, ms=msz, color=col)
+            a.plot(uu[sel & ~st], pp[sel & ~st], ls="none", marker=mk, ms=1.0, color=col, alpha=0.35)
         amp = np.array([np.nan if v is None else v for v in br["amplification_linear"]], float)
         a.plot(u, amp, color=INK2, lw=0.9, ls="--")
-        a.axhline(1.0, color=INK2, lw=0.6, ls=":")
-        a.set_xlim(0, 1.6); a.set_ylim(-2, 92)
+        for sgn in (1, -1):
+            a.axhline(sgn * 1.0, color=INK2, lw=0.6, ls=":")
+        a.set_xlim(0, 1.6); a.set_ylim(*ylim)
         a.set_xlabel(r"$U/U_{div}$")
         a.set_title(title, fontsize=7.5, color=INK)
         panel_label(a, lab)
@@ -206,13 +218,16 @@ def fig5():
                color=INK2)
     ax[0].annotate("", xy=(0.93, 12), xytext=(0.55, 29), arrowprops=dict(arrowstyle="->", color=INK2, lw=0.6))
     ax[0].text(1.22, 30, r"$\cos\psi^*=(U_{div}/U)^2$", fontsize=6.5, color=C1)
-    ax[1].annotate("fold (jump)", xy=(0.865, 10.3), xytext=(0.35, 40), fontsize=6.5, color=C2,
-                   arrowprops=dict(arrowstyle="->", color=C2, lw=0.7))
+    al = np.array(s3["branches"]["box aligned | L=100"]["primary"], float)
+    ax[1].plot(u, al, color=C3, lw=1.1, ls="-.")
+    ax[1].annotate("wind along the axis, with rope torque:\ntwist reduced (weathervane)", xy=(0.45, 1.6),
+                   xytext=(0.08, -16), fontsize=5.8, color=C3,
+                   arrowprops=dict(arrowstyle="->", color=C3, lw=0.6))
     handles = [Line2D([], [], color=C1, marker="o", ls="none", ms=4, label=r"no bias ($M_r$ = 0), stable"),
                Line2D([], [], color=C1, marker="o", ls="none", ms=4, alpha=0.35, label="no bias, unstable"),
                Line2D([], [], color=C2, marker="s", ls="none", ms=4, label=r"with rope torque, stable"),
                Line2D([], [], color=C2, marker="s", ls="none", ms=4, alpha=0.35, label="with rope torque, unstable"),
-               Line2D([], [], color=INK2, ls=":", lw=0.8, label="mating tolerance (1 deg)")]
+               Line2D([], [], color=INK2, ls=":", lw=0.8, label="mating tolerance (±1 deg)")]
     fig.legend(handles=handles, loc="lower center", ncol=5, fontsize=6.3, bbox_to_anchor=(0.5, -0.04))
     fig.tight_layout(rect=(0, 0.07, 1, 1), w_pad=1.0)
     save(fig, "Fig5_equilibria")
@@ -239,22 +254,28 @@ def fig7():
     a.set_ylabel("heave RAO (m/m)")
     a.legend(title="wave heading", fontsize=6, title_fontsize=6, loc="upper right")
     panel_label(a, "a")
+    # (b, c) one-way versus two-way coupling with the suspended load, heading 120 deg
+    j2 = hd.index(120)
+    cpl = v["coupled"]
+    cases = [("one-way", None, INK2, "-", 1.0)] + [
+        (rf"two-way, {int(Lk)} m", Lk, col, ls, 1.2)
+        for Lk, col, ls in ((str(int(cm.L_mating)), C2, "--"), ("100", C3, "-."))]
     a = ax[1]
-    for k_, (idx, nm) in enumerate(((3, "roll"), (4, "pitch"), (5, "yaw"))):
-        a.plot(w, np.degrees(rao[:, j, idx]), color=cm.SERIES[k_], ls=cm.LS[k_], lw=1.2, label=nm)
-    a.set_ylabel("rotation RAO (deg/m)")
-    a.legend(fontsize=6, loc="upper right", title="150 deg", title_fontsize=6)
+    for nm, Lk, col, ls, lw in cases:
+        R_ = rao if Lk is None else np.abs(np.array(cpl[Lk]["rao_re"]) + 1j * np.array(cpl[Lk]["rao_im"]))
+        a.plot(w, np.degrees(R_[:, j2, 3]), color=col, ls=ls, lw=lw, label=nm)
+    a.set_ylabel("roll RAO (deg/m)")
+    a.legend(fontsize=5.6, loc="upper right", title=r"120 deg, fall length", title_fontsize=5.6, framealpha=0.6)
     panel_label(a, "b")
     a = ax[2]
-    for k_, hh in enumerate((180.0, 150.0, 120.0)):
-        jj = hd.index(round(hh))
-        a.plot(w, np.hypot(tip[:, jj, 0], tip[:, jj, 1]), color=cm.SERIES[k_], ls=cm.LS[k_], lw=1.2,
-               label=f"{hh:.0f} deg")
+    for nm, Lk, col, ls, lw in cases:
+        T_ = tip if Lk is None else np.abs(np.array(cpl[Lk]["tip_re"]) + 1j * np.array(cpl[Lk]["tip_im"]))
+        a.plot(w, np.hypot(T_[:, j2, 0], T_[:, j2, 1]), color=col, ls=ls, lw=lw, label=nm)
     a.set_ylabel("boom-tip horizontal RAO (m/m)")
-    a.legend(title="wave heading", fontsize=6, title_fontsize=6, loc="upper right")
+    a.legend(fontsize=5.6, loc="upper right", title=r"120 deg, fall length", title_fontsize=5.6, framealpha=0.6)
     panel_label(a, "c")
     for a in ax[:3]:
-        a.set_xlim(0.15, 2.0)
+        a.set_xlim(0.15, 1.5)
         a.set_xlabel(r"$\omega$ (rad/s)")
         a.set_ylim(bottom=0)
     # (d) transfer functions at mating
@@ -283,7 +304,7 @@ def fig6():
     ext = d5["extremes"]
     fig, ax = plt.subplots(1, 3, figsize=(cm.W2, 3.1))
     for a, mname, lab, title in ((ax[0], "munk", "a", "potential flow (Munk)"),
-                                 (ax[1], "box", "b", "sharp-edged box")):
+                                 (ax[1], "box", "b", f"sharp-edged box, {abs(d5['box_theta0_deg']):.0f}° off axis")):
         for k_, zeta in enumerate(cm.zeta_values):
             r = resp[f"mating|{mname}|TI=0.06|zeta={zeta}"]
             c = np.array(r["curve"])
@@ -306,7 +327,7 @@ def fig6():
         a.set_yscale("log")
         a.set_xlim(0, 1.0); a.set_ylim(0.01, 60)
         a.set_xlabel(r"$U/U_{div}$")
-        a.set_title(title, fontsize=7.5)
+        a.set_title(title, fontsize=7.0, loc="right")
         panel_label(a, lab)
     ax[0].set_ylabel(r"yaw standard deviation $\sigma_\psi$ (deg)")
     ax[0].legend(loc="lower right", fontsize=5.4)
@@ -314,11 +335,9 @@ def fig6():
           Line2D([], [], marker="x", color=INK, ls="none", label=r"time domain, $L$ = 100 m"),
           Line2D([], [], marker="+", color=INK, ls="none", label=r"time domain, $L$ = 150 m")]
     ax[1].legend(handles=hh, loc="lower right", fontsize=5.4)
-    ax[1].annotate("fit extrapolated:\njumps to post-critical\nbranches", xy=(0.85, 30), xytext=(0.12, 8),
-                   fontsize=5.8, color=INK2, arrowprops=dict(arrowstyle="->", color=INK2, lw=0.6))
     # (c) physical wind at mating: standard deviation and expected 20-min maximum
     a = ax[2]
-    for k_, (mname, nm) in enumerate((("munk", "Munk"), ("box", "box"))):
+    for k_, (mname, nm) in enumerate((("munk", "Munk"), ("box", "box, 20°"))):
         for TI, ls in ((0.06, "-"), (0.12, "--")):
             r = resp[f"mating|{mname}|TI={TI}|zeta=0.01"]
             c = np.array(r["curve"])
@@ -331,7 +350,7 @@ def fig6():
     a.set_yscale("log")
     a.set_xlim(0, 20); a.set_ylim(0.01, 60)
     a.set_xlabel(r"mean wind at hub height $U$ (m/s)")
-    a.set_title(rf"mating ($L$ = {cm.L_mating:.0f} m), $\zeta_s$ = 0.01", fontsize=7.5)
+    a.set_title(rf"mating ($L$ = {cm.L_mating:.0f} m), $\zeta_s$ = 0.01", fontsize=7.0, loc="right")
     a.legend(loc="upper center", fontsize=5.4, ncol=2, bbox_to_anchor=(0.5, -0.22))
     panel_label(a, "c")
     fig.tight_layout(w_pad=1.0)

@@ -10,7 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 import common as cm                                   # noqa: E402
-from aero_models import Munk, BluffBox, U_div         # noqa: E402
+from aero_models import Munk, BluffBox, MeasuredBox, U_div, max_slope   # noqa: E402
 from s1_suspension import BlockEquilibrium, moment_closed_form   # noqa: E402
 from s3_statics import equilibria                     # noqa: E402
 from s6_control import eig_threshold                  # noqa: E402
@@ -67,6 +67,24 @@ def test_divergence_speeds_table3():
     assert BluffBox(0.09, 0.04, xs=1.0).CK < 0          # weathervane: no divergence
 
 
+def test_measured_box_fit():
+    import wind_tunnel_data as wt
+    m = MeasuredBox()
+    assert wt.fit()[2] < 0.007                          # rms residual of the fit
+    assert m.CK == pytest.approx(-0.436, abs=0.005)     # wind along the axis: stabilising
+    cmax, bmax = max_slope(m)
+    assert cmax == pytest.approx(0.335, abs=0.003)
+    assert np.degrees(bmax) == pytest.approx(18.4, abs=0.3)
+    for K in (4, 5, 6, 7):                              # sign of C_K independent of the fit order
+        assert MeasuredBox(K).CK < 0
+
+
+def test_critical_speeds_sharp_edged_box():
+    cmax = max_slope(MeasuredBox())[0]
+    assert U_div(cm.suspension(13.0).k_psi, cmax) == pytest.approx(36.3, abs=0.1)
+    assert U_div(cm.suspension(150.0).k_psi, cmax) == pytest.approx(10.8, abs=0.1)
+
+
 def test_munk_post_critical_branch():
     s = cm.suspension(100.0)
     m = Munk(0.496)
@@ -80,6 +98,28 @@ def test_munk_post_critical_branch():
 def test_supercriticality_criterion():
     assert Munk().K3_over_K() == pytest.approx(2 / 3)
     assert BluffBox(0.09, 0.04).K3_over_K() < 1 / 6
+
+
+# ---------------------------------------------------------------- Section 5.3
+def test_coupled_vessel_pendulum_limits():
+    """Two-way coupling: at low frequency the load follows the boom tip (rigid limit);
+    the horizontal load motion obeys the pendulum transfer function."""
+    from s4_vessel import coupled_rao, pendulum, J_TIP
+    rng = np.random.default_rng(1)
+    om = np.array([1e-3, 0.3, 0.8])
+    M = np.diag([1e8, 1e8, 1e8, 4e10, 5e11, 5e11])
+    C = np.diag([0.0, 0.0, 3e7, 1.3e10, 6e11, 0.0])
+    Kh = np.diag([1.8e5, 1.8e5, 0.0, 0.0, 0.0, 9e8])
+    bem = dict(omega=om, M=M, A=np.zeros((3, 6, 6)), B=np.zeros((3, 6, 6)), Bext=np.diag([0, 0, 0, 1e9, 0, 0]),
+               C=C, Kh=Kh, Fex=rng.normal(size=(3, 1, 6)) * 1e6 + 0j)
+    rao2, tip2, xL2 = coupled_rao(bem, cm.L_mating)
+    rao3, tip3, _ = coupled_rao(bem, cm.L_mating, rigid=True)
+    assert np.allclose(rao2[0], rao3[0], rtol=1e-4, atol=1e-12)
+    mL, Kp, cp = pendulum(cm.L_mating)
+    for i, w in enumerate(om):
+        G = (Kp - 1j * w * cp) / (Kp - 1j * w * cp - w ** 2 * mL)
+        assert np.allclose(xL2[i, 0], G * tip2[i, 0, :2])
+    assert np.allclose(tip2, np.einsum("ij,fhj->fhi", J_TIP, rao2))
 
 
 # ---------------------------------------------------------------- Section 6

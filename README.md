@@ -15,9 +15,10 @@ Every number, table and figure of the paper is produced by the scripts in `src/`
 | `src/common.py` | 2.2, Table 1 | baseline parameters (IEA 15 MW nacelle, hoist reeving, crane vessel), derived suspension quantities, figure style | – |
 | `src/s1_suspension.py` | 3, Table 2, Fig. 2 | closed-form restoring moment of a multi-fall suspension; independent 3D equilibrium of the block (Levenberg–Marquardt); sheave friction; wire-rope cabling benchmark; elastic-torsion bound | `results/s1_suspension.json` |
 | `src/s2_aero_bem.py` | 4.1, Fig. 3, Fig. 9(b,c) | added masses in an unbounded fluid with Capytaine: prolate spheroid vs Lamb, superellipsoids, rectangular box; aerodynamic yaw-stiffness coefficients | `results/s2_aero_bem.json` |
-| `src/aero_models.py` | 4.1 | potential-flow (Munk) and sharp-edged-box yaw-moment models; divergence speed | – |
-| `src/s3_statics.py` | 4.2–4.4, Table 3, Figs. 4–5 | divergence speed along the lift; wind-heading dependence; all equilibria and their stability with the complete moment balance | `results/s3_statics.json` |
-| `src/s4_vessel.py` | 5.3, Table 4, Fig. 7(a–c) | crane-vessel hydrodynamics (Capytaine), RAOs, boom-tip motions | `results/s4_vessel.json` |
+| `src/wind_tunnel_data.py` | 4.1, Fig. 3(b) | yawing moments of rectangular boxes digitised from NASA TM-X-62169 (Laub and Kodani, 1972); sine-series fit to the 2.5:1 box | – |
+| `src/aero_models.py` | 4.1 | potential-flow (Munk) moment, measured sharp-edged-box moment, Greenwell's fit; steepest slope; divergence speed | – |
+| `src/s3_statics.py` | 4.2–4.4, Table 3, Figs. 4–5 | divergence speed along the lift and for the worst wind direction; wind-heading dependence; all equilibria and their stability with the complete moment balance; primary branch followed exactly in the yaw parameter | `results/s3_statics.json` |
+| `src/s4_vessel.py` | 5.3, Table 4, Fig. 7(a–c) | crane-vessel hydrodynamics (Capytaine), RAOs, boom-tip motions; two-way coupling of the vessel with the pendulum of the suspended load (coupled RAOs and natural periods) | `results/s4_vessel.json`, `results/s4_bem.npz` |
 | `src/s5_dynamics.py` | 5, Figs. 6, 7(d) | spectral and time-domain yaw response to turbulent wind (including the gust-gradient moment); expected largest yaw; vessel coupling; Floquet analysis of heave-induced parametric excitation | `results/s5_dynamics.json` |
 | `src/s5b_checks.py` | 5.3, 7.2 | time-step convergence; attribution of the vessel coupling paths; swell at twice the yaw frequency | `results/s5b_checks.json` |
 | `src/s6_control.py` | 6, Fig. 8 | closed-loop divergence speed (eigenvalues), actuator lag, tugger saturation, closed-loop response | `results/s6_control.json` |
@@ -51,14 +52,16 @@ pytest                       # verification tests of the key results (about 1 mi
 - the closed-form restoring moment against the three-dimensional equilibrium solution;
 - the wire-rope cabling benchmark;
 - the boundary-element added masses against Lamb's exact values;
-- the divergence speeds quoted in the paper;
+- the divergence speeds quoted in the paper, for potential flow and for the measured sharp-edged box;
+- the fit to the wind-tunnel data (sign of the stiffness for a wind along the axis, steepest slope);
+- the two-way vessel–pendulum coupling (rigid limit at low frequency, pendulum transfer function);
 - the post-critical equilibrium of the potential-flow model;
 - the closed-loop threshold against the eigenvalues of the closed loop;
 - the consistency of the stored results with the values quoted in the paper.
 
 ## Parameters and their sources
 
-All baseline values are in `src/common.py`, with their sources in comments, and are listed in Table 1 of the paper. The main dimensions of the crane vessel and the lift height of the auxiliary block are taken from the published datasheet of the heavy-lift crane vessel *Les Alizés* (Jan De Nul). The operating draught, the centre of gravity, the crane position, the hoist reeving and the rigging height are assumptions. To analyse another configuration, change these values and rerun `run_all.py`.
+All baseline values are in `src/common.py`, with their sources in comments, and are listed in Table 1 of the paper. The wind-tunnel moments of rectangular boxes in `src/wind_tunnel_data.py` were read from the tables of NASA TM-X-62169 (public domain, https://ntrs.nasa.gov/citations/19720020345). The main dimensions of the crane vessel and the lift height of the auxiliary block are taken from the published datasheet of the heavy-lift crane vessel *Les Alizés* (Jan De Nul). The operating draught, the centre of gravity, the crane position, the hoist reeving and the rigging height are assumptions. To analyse another configuration, change these values and rerun `run_all.py`.
 
 ## Structure
 

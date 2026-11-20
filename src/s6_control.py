@@ -9,7 +9,7 @@ Section 6: yaw control with tugger lines - stiffness versus damping.
 import json
 import numpy as np
 import common as cm
-from aero_models import Munk, BluffBox, U_div, qASL
+from aero_models import Munk, U_div, qASL
 import s5_dynamics as d
 from s3_statics import z_payload
 
@@ -29,7 +29,7 @@ def run():
     out = {}
     CK = json.load(open(f"{cm.RES}/s2_aero_bem.json"))["CK"]["bem_box"]
     m_munk = Munk(CK)
-    m_box = BluffBox(0.09, 0.04)
+    m_box = d.box_model()
     # (1) closed-loop threshold vs kp for several kd -------------------------
     kps = np.r_[0, np.logspace(4, 7, 25)]
     thr = {"kp": kps.tolist()}
