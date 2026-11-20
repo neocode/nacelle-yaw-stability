@@ -6,6 +6,13 @@ version: "2.2.0"
 date-released: "2026-11-20"
 license: MIT
 doi: "10.5281/zenodo.24403652"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.24403652"
+    description: "Concept DOI (all versions)"
+  - type: doi
+    value: "10.5281/zenodo.24407988"
+    description: "Version 2.2.0"
 repository-code: "https://github.com/neocode/nacelle-yaw-stability"
 authors:
   - given-names: "Serhii"
