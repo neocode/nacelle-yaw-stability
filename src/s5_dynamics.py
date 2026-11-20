@@ -31,10 +31,15 @@ def kaimal(f, sigma, Lk, U):
     return sigma ** 2 * 4 * Lk / U / (1 + 6 * x) ** (5 / 3)
 
 
-def turbulence(seed, T, dt, U, TI, z):
-    """Point time series u(t), v(t) by spectral synthesis (random phases, FFT)."""
+def turbulence(seed, T, dt, U, TI, z, T_syn=None):
+    """Point time series u(t), v(t) by spectral synthesis (random phases, FFT).
+    The series is synthesised over T_syn >= T (frequency spacing 1/T_syn) and its
+    first T seconds are returned; a fine spacing is needed when the yaw resonance
+    is narrower than 1/T."""
     rng = np.random.default_rng(seed)
-    n = int(round(T / dt))
+    n_out = int(round(T / dt))
+    n = max(n_out, int(round((T_syn or T) / dt)))
+    n += n % 2
     f = np.fft.rfftfreq(n, dt)
     df = f[1]
     lam = cm.Lambda1(z)
@@ -46,37 +51,49 @@ def turbulence(seed, T, dt, U, TI, z):
         amp = np.sqrt(2 * S * df)
         ph = rng.uniform(0, 2 * np.pi, len(f))
         X = amp * np.exp(1j * ph) * n / 2
-        out.append(np.fft.irfft(X, n))
+        out.append(np.fft.irfft(X, n)[:n_out])
     return out[0], out[1]
 
 
 _V = {}
 
 
-def vessel_inputs(seed, T, dt, heading_deg=150.0, Hs=cm.Hs, Tp=cm.Tp, coupled_L=None):
+_C = {}
+
+
+def vessel_inputs(seed, T, dt, heading_deg=150.0, Hs=cm.Hs, Tp=cm.Tp, coupled_L=None, zeta_p=None):
     """Boom-tip horizontal motion and velocity, vertical acceleration and vessel
     yaw [rad] from the BEM RAOs and a JONSWAP sea (random phases).
-    coupled_L: fall length of the two-way coupled vessel-pendulum solution whose
-    RAOs are used (None: one-way RAOs of the vessel alone)."""
+    coupled_L: fall length of the two-way coupled vessel-pendulum solution, evaluated
+    with the pendulum damping zeta_p directly on the synthesis frequencies
+    (None: one-way RAOs of the vessel alone)."""
     if not _V:
         with open(f"{cm.RES}/s4_vessel.json") as fh:
             _V.update(json.load(fh))
     V = _V
     w_r = np.array(V["omega"])
     j = V["headings_deg"].index(min(V["headings_deg"], key=lambda h: abs(h - heading_deg)))
-    src = V
-    if coupled_L is not None:
-        Lk = min(V["coupled"], key=lambda k: abs(float(k) - coupled_L))
-        src = V["coupled"][Lk]
-    # BEM RAOs use the time factor exp(-i w t); the synthesis below uses exp(+i w t)
-    rao = np.conj(np.array(src["rao_re"])[:, j, :] + 1j * np.array(src["rao_im"])[:, j, :])
-    tip = np.conj(np.array(src["tip_re"])[:, j, :] + 1j * np.array(src["tip_im"])[:, j, :])
     rng = np.random.default_rng(10_000 + seed)
     n = int(round(T / dt))
     dw = 2 * np.pi / T
     w = np.fft.rfftfreq(n, dt) * 2 * np.pi            # multiples of dw
     act = (w >= w_r[0]) & (w <= w_r[-1])
     wa = np.where(act, w, 1.0)
+    if coupled_L is None:
+        # BEM RAOs use the time factor exp(-i w t); the synthesis below uses exp(+i w t)
+        rao_r = np.conj(np.array(V["rao_re"])[:, j, :] + 1j * np.array(V["rao_im"])[:, j, :])
+        tip_r = np.conj(np.array(V["tip_re"])[:, j, :] + 1j * np.array(V["tip_im"])[:, j, :])
+        ip = lambda Z: np.interp(wa, w_r, Z.real) + 1j * np.interp(wa, w_r, Z.imag)
+        rao = np.stack([ip(rao_r[:, k]) for k in range(6)], axis=1)
+        tip = np.stack([ip(tip_r[:, k]) for k in range(3)], axis=1)
+    else:
+        from s4_vessel import coupled_on_grid
+        key = (round(coupled_L, 3), zeta_p, n, dt, j)
+        if key not in _C:
+            R, Tq = coupled_on_grid(w, coupled_L, zeta_p)
+            _C.clear()
+            _C[key] = (np.conj(R[:, j, :]), np.conj(Tq[:, j, :]))
+        rao, tip = _C[key]
     wp = 2 * np.pi / Tp
     sig = np.where(wa <= wp, 0.07, 0.09)
     S = ((1 - 0.287 * np.log(cm.gamma_J)) * (5 / 16) * Hs ** 2 * wp ** 4 / wa ** 5
@@ -85,20 +102,17 @@ def vessel_inputs(seed, T, dt, heading_deg=150.0, Hs=cm.Hs, Tp=cm.Tp, coupled_L=
     a = np.sqrt(2 * S * dw)
     ph = rng.uniform(0, 2 * np.pi, len(w))
 
-    def interp_c(Z):
-        return np.interp(wa, w_r, Z.real) + 1j * np.interp(wa, w_r, Z.imag)
-
     def synth(Z):
         # x(t) = Re sum a_k Z_k exp(i(w_k t + ph_k))
         return np.fft.irfft(a * Z * np.exp(1j * ph) * n / 2, n)
 
-    xt = synth(interp_c(tip[:, 0]))
-    yt = synth(interp_c(tip[:, 1]))
-    dxt = synth(1j * w * interp_c(tip[:, 0]))
-    dyt = synth(1j * w * interp_c(tip[:, 1]))
-    azt = synth(-w ** 2 * interp_c(tip[:, 2]))
-    psv = synth(interp_c(rao[:, 5]))
-    dpsv = synth(1j * w * interp_c(rao[:, 5]))
+    xt = synth(tip[:, 0])
+    yt = synth(tip[:, 1])
+    dxt = synth(1j * w * tip[:, 0])
+    dyt = synth(1j * w * tip[:, 1])
+    azt = synth(-w ** 2 * tip[:, 2])
+    psv = synth(rao[:, 5])
+    dpsv = synth(1j * w * rao[:, 5])
     return xt, yt, azt, psv, dpsv, dxt, dyt
 
 
@@ -275,22 +289,36 @@ def spectral(L, model, zeta_s, U, TI, z, control=False, kp=cm.k_p_nom, kd=cm.k_d
     return out
 
 
-def simulate(L, model, zeta_s, U, TI, z, seeds, T=4200.0, burn=600.0, dt=0.05,
+def simulate(L, model, zeta_s, U, TI, z, seeds, record=None, burn=600.0, dt=0.05,
              vessel=False, heading=150.0, control=False, kp=cm.k_p_nom, kd=cm.k_d_nom,
              rope=True, Hs=cm.Hs, Tp=cm.Tp, zeta_p=ZETA_P, only=None, two_way=True):
-    """Time-domain runs. only: restrict the vessel input to 'yaw', 'horiz' or 'heave'.
-    two_way: boom-tip motion from the coupled vessel-pendulum solution."""
+    """Time-domain runs (one record of length `record` per seed after the burn-in).
+    only: restrict the vessel input to 'yaw', 'horiz' or 'heave'.
+    two_way: boom-tip motion from the coupled vessel-pendulum solution.
+    The burn-in is extended to 3/(zeta_tot w_0), so that the resonant variance of the
+    yaw mode, which builds up as 1 - exp(-2 zeta w_0 t), is within 0.3 % of its
+    stationary value.  The record lasts at least one hour and at least ten correlation
+    times 1/(zeta_tot w_0) of the response envelope (unless `record` is given)."""
     P = params_vector(L, model, zeta_s, U, control, kp, kd, rope, zeta_p=zeta_p)
     psib = static_equilibrium(P, U)
+    spx = spectral(L, model, zeta_s, U, TI, z, control, kp, kd, rope=rope)
+    tau = 1.0 / (spx["zeta_tot"] * 2 * np.pi * max(spx["f_n"], 1e-4))   # envelope correlation time
+    burn = max(burn, min(3.0 * tau, 6.0e4))
+    if record is None:
+        record = float(np.ceil(max(3600.0, min(10.0 * tau, 6.0e4)) / 100.0) * 100.0)
+    burn = float(np.ceil(burn / 100.0) * 100.0)
+    T = burn + record
+    # wind frequency spacing at least ten lines per half-power bandwidth of the yaw mode
+    T_syn = max(T, min(10.0 / (2 * spx["zeta_tot"] * max(spx["f_n"], 1e-4)), 4.0e5))
     stats = []
     n = int(round(T / dt))
     Z = np.zeros(n)
     for sd in seeds:
-        u, v = turbulence(sd, T, dt, U, TI, z)
+        u, v = turbulence(sd, T, dt, U, TI, z, T_syn)
         dth = np.gradient(np.arctan2(v, U + u), dt)
         if vessel:
             xt, yt, azt, psv, dpsv, dxt, dyt = vessel_inputs(sd, T, dt, heading, Hs, Tp,
-                                                             L if two_way else None)
+                                                             L if two_way else None, zeta_p)
             if only == "yaw":
                 xt = yt = azt = dxt = dyt = Z
             elif only == "horiz":
@@ -308,8 +336,12 @@ def simulate(L, model, zeta_s, U, TI, z, seeds, T=4200.0, burn=600.0, dt=0.05,
                           frac_in_tol=float(np.mean(np.abs(psi) < np.radians(1.0))),
                           frac_in_tol_dyn=float(np.mean(np.abs(psi - psi.mean()) < np.radians(1.0))),
                           sway_std=float(np.hypot(X[i0:, 2].std(), X[i0:, 4].std())),
-                          sway_angle_std=float(np.degrees(np.hypot(X[i0:, 2].std(), X[i0:, 4].std())
-                                                          / (L + Z_BLOCK_CG)))))
+                          sway_rel_std=float(np.hypot((X[i0:, 2] - xt[i0:]).std(),
+                                                      (X[i0:, 4] - yt[i0:]).std())),
+                          sway_angle_std=float(np.degrees(np.hypot((X[i0:, 2] - xt[i0:]).std(),
+                                                                   (X[i0:, 4] - yt[i0:]).std())
+                                                          / (L + Z_BLOCK_CG))),
+                          burn=burn, record=record))
     return stats
 
 
@@ -448,19 +480,29 @@ def run(quick=False):
         for mname, m in models.items():
             for TI in cm.TI_values:
                 for ctrl in (False, True):
-                    em, sg = [], []
+                    em, sg, dy = [], [], []
                     for U in Ugrid:
                         spx = spectral(L, m, 0.01, U, TI, z, control=ctrl)
                         if not np.isfinite(spx["psib"]) or spx["keff"] <= 0:
                             break
                         em.append(float(np.degrees(spx["expected_max"])))
                         sg.append(float(np.degrees(spx["sigma"])))
-                    em = np.array(em); sg = np.array(sg)
-                    U_lim_max = float(Ugrid[np.argmax(em > 1.0)]) if np.any(em > 1.0) else None
-                    U_lim_sig = float(Ugrid[np.argmax(sg > 1.0)]) if np.any(sg > 1.0) else None
+                        dy.append(float(np.degrees(spx["peak_factor"] * spx["sigma"])))
+                    em = np.array(em); sg = np.array(sg); dy = np.array(dy)
+
+                    def crossing(y):
+                        # first up-crossing of 1 deg, linearly interpolated between grid points
+                        i = int(np.argmax(y > 1.0))
+                        if not np.any(y > 1.0):
+                            return None
+                        if i == 0:
+                            return float(Ugrid[0])
+                        return float(np.interp(1.0, [y[i - 1], y[i]], [Ugrid[i - 1], Ugrid[i]]))
                     ext[f"{cname}|{mname}|TI={TI}|ctrl={ctrl}"] = dict(
                         U=Ugrid[:len(em)].tolist(), expected_max=em.tolist(), sigma=sg.tolist(),
-                        U_limit_expected_max=U_lim_max, U_limit_sigma=U_lim_sig)
+                        dynamic_max=dy.tolist(),
+                        U_limit_expected_max=crossing(em), U_limit_sigma=crossing(sg),
+                        U_limit_dynamic_max=crossing(dy))
     res["extremes"] = ext
 
     # ---------------- (D) vessel coupling at mating: with / without vessel motion
@@ -477,6 +519,7 @@ def run(quick=False):
                     no_vessel=summarize(st0, "std"), vessel=summarize(st1, "std"),
                     vessel_Hs3=summarize(st2, "std"),
                     sway_no=summarize(st0, "sway_std"), sway_v=summarize(st1, "sway_std"),
+                    sway_rel_v=summarize(st1, "sway_rel_std"), sway_rel_Hs3=summarize(st2, "sway_rel_std"),
                     sway_angle_v=summarize(st1, "sway_angle_std"),
                     sway_angle_Hs3=summarize(st2, "sway_angle_std"))
                 if hd == 120.0:
@@ -484,11 +527,13 @@ def run(quick=False):
                                    two_way=False)
                     row["vessel_one_way"] = summarize(st4, "std")
                     row["sway_v_one_way"] = summarize(st4, "sway_std")
+                    row["sway_rel_v_one_way"] = summarize(st4, "sway_rel_std")
                     for zp in (0.002, 0.05):
                         st3 = simulate(L, m, 0.01, U, 0.06, z, seeds[:10], vessel=True, heading=hd,
                                        zeta_p=zp)
                         row[f"vessel_zeta_p={zp}"] = summarize(st3, "std")
                         row[f"sway_v_zeta_p={zp}"] = summarize(st3, "sway_std")
+                        row[f"sway_rel_v_zeta_p={zp}"] = summarize(st3, "sway_rel_std")
                 vc[f"{mname}|U={U}|hd={hd}"] = row
         print("vessel", mname, time.time() - t0)
     res["vessel_coupling"] = vc

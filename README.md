@@ -15,7 +15,7 @@ Every number, table and figure of the paper is produced by the scripts in `src/`
 | `src/common.py` | 2.2, Table 1 | baseline parameters (IEA 15 MW nacelle, hoist reeving, crane vessel), derived suspension quantities, figure style | – |
 | `src/s1_suspension.py` | 3, Table 2, Fig. 2 | closed-form restoring moment of a multi-fall suspension; independent 3D equilibrium of the block (Levenberg–Marquardt); sheave friction; wire-rope cabling benchmark; elastic-torsion bound | `results/s1_suspension.json` |
 | `src/s2_aero_bem.py` | 4.1, Fig. 3, Fig. 9(b,c) | added masses in an unbounded fluid with Capytaine: prolate spheroid vs Lamb, superellipsoids, rectangular box; aerodynamic yaw-stiffness coefficients | `results/s2_aero_bem.json` |
-| `src/wind_tunnel_data.py` | 4.1, Fig. 3(b) | yawing moments of rectangular boxes digitised from NASA TM-X-62169 (Laub and Kodani, 1972); sine-series fit to the 2.5:1 box | – |
+| `src/wind_tunnel_data.py` | 4.1, Fig. 3(b) | yawing moments of rectangular boxes digitised from NASA TM-X-62169 (Laub and Kodani, 1972; Tables II-1, VIII-1 to VIII-3, AI-1, AII-1, AIII-1, pitch 0); sine-series fits to the 2.5:1 box for four choices of the data | – |
 | `src/aero_models.py` | 4.1 | potential-flow (Munk) moment, measured sharp-edged-box moment, Greenwell's fit; steepest slope; divergence speed | – |
 | `src/s3_statics.py` | 4.2–4.4, Table 3, Figs. 4–5 | divergence speed along the lift and for the worst wind direction; wind-heading dependence; all equilibria and their stability with the complete moment balance; primary branch followed exactly in the yaw parameter | `results/s3_statics.json` |
 | `src/s4_vessel.py` | 5.3, Table 4, Fig. 7(a–c) | crane-vessel hydrodynamics (Capytaine), RAOs, boom-tip motions; two-way coupling of the vessel with the pendulum of the suspended load (coupled RAOs and natural periods) | `results/s4_vessel.json`, `results/s4_bem.npz` |
@@ -38,7 +38,7 @@ The versions used for the paper are pinned in `requirements.txt`.
 ## Reproducing the results
 
 ```
-python run_all.py            # all analyses and figures, about 10 minutes on a 24-core workstation
+python run_all.py            # all analyses and figures, about 25 minutes on a 24-core workstation
 python run_all.py --figures  # figures only, from the stored results
 pytest                       # verification tests of the key results (about 1 minute)
 ```

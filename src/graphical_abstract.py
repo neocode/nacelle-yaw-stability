@@ -11,7 +11,7 @@ s3 = json.load(open(f"{cm.RES}/s3_statics.json"))
 al = s3["along_lift"]; L = np.array(al["L"]); z = np.array(al["z_payload"])
 fig = plt.figure(figsize=(6.6, 2.65))
 a0 = fig.add_axes([0.0, 0.0, 0.40, 1.0]); panel_a(a0)
-a = fig.add_axes([0.50, 0.17, 0.47, 0.70])
+a = fig.add_axes([0.57, 0.17, 0.41, 0.70])
 fits = [k for k in al if k.startswith("box") and "x_s" not in k and "Eq." not in k and "|" not in k]
 band = np.array([al[k] for k in fits])
 a.fill_between(L, band.min(0), band.max(0), color=C2, alpha=0.22, lw=0)

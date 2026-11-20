@@ -73,7 +73,7 @@ def panel_a(ax):
     ax.text(bp[0] - 3, bp[1] + 3.5, "tugger line", fontsize=6.5, color=C2, ha="right")
     # payload at lift-off
     ax.add_patch(Rectangle((-50, 9), 20, 10, fc="none", ec=INK2, lw=0.6, ls="--"))
-    ax.text(-40, 21.5, "lift-off\n($L$ ≈ 150 m)", fontsize=6.0, color=INK2, ha="center", va="bottom")
+    ax.text(-54, 30.0, "lift-off\n$L$ ≈ 150 m", fontsize=5.6, color=INK2, ha="left", va="bottom")
     # vessel motions
     arrow(ax, (6, 11), (6, 21), color=INK2, lw=0.6)
     arrow(ax, (1, 11), (11, 11), color=INK2, lw=0.6)

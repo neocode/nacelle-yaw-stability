@@ -176,6 +176,33 @@ def run():
                 psi_at_u=psi_at)
     res["worst_heading"] = worst
 
+    # ------------------- uncertainty envelope of the measured box: data choice x fit order
+    env = {}
+    Lkeys = (cm.L_mating, 60.0, cm.L_ref, cm.L_liftoff)
+    ths_e = np.radians(np.arange(-60.0, 60.01, 1.0))
+    U_all = []
+    from aero_models import zero_near_max_slope
+    for ch, sets in wt.DATA_CHOICES.items():
+        for K in wt.K_RANGE:
+            m = MeasuredBox(K, sets=sets)
+            cmax, bmax = max_slope(m)
+            row = dict(CK=m.CK, cmax=cmax, beta_max_deg=float(np.degrees(bmax)),
+                       zero_deg=float(np.degrees(zero_near_max_slope(m))), rms=wt.fit(K, sets)[2],
+                       U_crit={}, fold_min={})
+            for L in Lkeys:
+                sL = cm.suspension(L)
+                row["U_crit"][str(int(L))] = U_crit(sL.k_psi, m)
+                folds = np.array([primary_path(sL.k_psi, sL.M_r, m, t)[2] for t in ths_e])
+                i = int(np.argmin(folds))
+                row["fold_min"][str(int(L))] = [float(folds[i]), float(np.degrees(ths_e[i])),
+                                                float(folds[i] / U_crit(sL.k_psi, m))]
+            U_all.append([U_crit(cm.suspension(L).k_psi, m) for L in Ls])
+            env[f"{ch} | K={K}"] = row
+    res["envelope"] = env
+    U_all = np.array(U_all)
+    res["along_lift"]["box envelope min"] = U_all.min(0).tolist()
+    res["along_lift"]["box envelope max"] = U_all.max(0).tolist()
+
     # ---------------------------------------------- equilibrium branches
     u = np.linspace(0.0, 1.6, 321)
     br = {}
@@ -234,6 +261,8 @@ if __name__ == "__main__":
         print(L, {k: (round(v, 1) if isinstance(v, float) and v < 1e4 else v) for k, v in row.items()})
     for k, v in r["worst_heading"].items():
         print(k, json.dumps(v))
+    for k, v in r["envelope"].items():
+        print(k, {a: (round(b, 3) if isinstance(b, float) else b) for a, b in v.items()})
     print(json.dumps(r["munk_lock_check"], indent=0))
     for k, v in r["branches"].items():
         p = np.array(v["primary"], float)

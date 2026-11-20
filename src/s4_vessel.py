@@ -69,6 +69,23 @@ def pendulum(L, zeta_p=None):
     return mL, mL * cm.g / lp, 2 * zeta_p * mL * np.sqrt(cm.g / lp)
 
 
+def vessel_mass_without_load(M):
+    """Rigid-body mass matrix (about the total CG) of the vessel without the suspended
+    load: mass m_v = M11 - m_L at r_v = -m_L r_tip / m_v, with the assumed radii of
+    gyration about its own centre of gravity."""
+    mL = cm.m_p + cm.m_hb
+    mv = M[0, 0] - mL
+    rv = -mL * R_TIP / mv
+    Ic = np.diag(np.diag(M)[3:]) * mv / M[0, 0]
+    S = skew(rv)
+    Mv = np.zeros((6, 6))
+    Mv[:3, :3] = mv * np.eye(3)
+    Mv[:3, 3:] = -mv * S
+    Mv[3:, :3] = mv * S
+    Mv[3:, 3:] = Ic - mv * S @ S
+    return Mv
+
+
 def coupled_rao(bem, L, zeta_p=None, rigid=False):
     """Vessel + pendulum (8 unknowns per frequency).  Returns the vessel RAO,
     the boom-tip RAO and the horizontal RAO of the load (absolute).
@@ -76,7 +93,7 @@ def coupled_rao(bem, L, zeta_p=None, rigid=False):
     om, M, A, Bd, Bext, C, Kh, Fex = (bem[k] for k in ("omega", "M", "A", "B", "Bext", "C", "Kh", "Fex"))
     mL, Kp, cp = pendulum(L, zeta_p)
     Jh, Jv = J_TIP[:2], J_TIP[2:3]
-    Mv = M - np.diag([mL, mL, mL, 0.0, 0.0, 0.0])
+    Mv = vessel_mass_without_load(M)
     nh = Fex.shape[1]
     rao = np.zeros((len(om), nh, 6), complex)
     xL = np.zeros((len(om), nh, 2), complex)
@@ -108,7 +125,7 @@ def coupled_modes(bem, L):
     om, M, A, C, Kh = (bem[k] for k in ("omega", "M", "A", "C", "Kh"))
     mL, Kp, _ = pendulum(L)
     Jh, Jv = J_TIP[:2], J_TIP[2:3]
-    Mv = M - np.diag([mL, mL, mL, 0.0, 0.0, 0.0])
+    Mv = vessel_mass_without_load(M)
     K8 = np.zeros((8, 8))
     K8[:6, :6] = C + Kh + Kp * Jh.T @ Jh
     K8[:6, 6:] = -Kp * Jh.T
@@ -249,6 +266,26 @@ def coupling(bem, rao1, tip1):
                 pend_angle_two=float(np.degrees(two_rel / (L + cm.Z_CG_BELOW_BLOCK))))
         res[str(int(L))] = r
     return res
+
+
+def coupled_on_grid(w, L, zeta_p=None):
+    """Two-way coupled RAOs evaluated directly at the frequencies w (the BEM
+    coefficients are interpolated linearly; outside the BEM range zero is returned).
+    Used for the time-domain synthesis, so that the pendulum peak is resolved for
+    any pendulum damping."""
+    bem = dict(np.load(f"{cm.RES}/s4_bem.npz"))
+    om = bem["omega"]
+    inside = (w >= om[0]) & (w <= om[-1])
+    wi = w[inside]
+    ip = lambda X: np.stack([np.interp(wi, om, X[:, ...].reshape(len(om), -1)[:, k])
+                             for k in range(X[0].size)], axis=1).reshape((len(wi),) + X.shape[1:])
+    Fex = bem["Fex"]
+    g = dict(bem, omega=wi, A=ip(bem["A"]), B=ip(bem["B"]), Fex=ip(Fex.real) + 1j * ip(Fex.imag))
+    rao, tip, xL = coupled_rao(g, L, zeta_p)
+    n = len(w)
+    R = np.zeros((n,) + rao.shape[1:], complex); R[inside] = rao
+    Tp = np.zeros((n,) + tip.shape[1:], complex); Tp[inside] = tip
+    return R, Tp
 
 
 def coupling_from_cache():

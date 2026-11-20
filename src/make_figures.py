@@ -50,7 +50,7 @@ def fig2():
     # (c) static twist
     c_ = ax[2]
     c_.plot(L, al["psi0_deg"], color=C1, lw=1.4, label=r"rope-torque twist $\psi_0$")
-    c_.axhline(1.0, color=C2, lw=1.0, ls=":", label="mating tolerance (relevant at mating only)")
+    c_.axhline(1.0, color=C2, lw=1.0, ls=":", label="mating tolerance")
     c_.plot([cm.L_mating], [al["psi0_deg"][0]], marker="o", color=C1, ms=4, ls="none")
     c_.annotate("mating", xy=(cm.L_mating, al["psi0_deg"][0]), xytext=(30, 0.15), fontsize=6.2, color=INK2)
     c_.set_xlim(cm.L_mating, 150); c_.set_ylim(0, 3.5)
@@ -70,7 +70,7 @@ def fig3():
     s2 = R("s2_aero_bem")
     s3 = R("s3_statics")
     CK = s2["CK"]
-    ck, ms = s3["CK"], s3["max_slope"]
+    ck, ms, env = s3["CK"], s3["max_slope"], s3["envelope"]
     fits = ("box",) + tuple(f"box, K={K}" for K in (4, 5, 6, 7) if K != wt.K_NOMINAL)
     fig, ax = plt.subplots(1, 2, figsize=(cm.W2, 3.05), gridspec_kw=dict(width_ratios=[1.0, 1]))
     a = ax[0]
@@ -79,9 +79,9 @@ def fig3():
         ("superellipsoid, N = 4 (BEM)", CK["bem_superellipsoid_n4"], None, C1, "o"),
         ("superellipsoid, N = 8 (BEM)", CK["bem_superellipsoid_n8"], None, C1, "o"),
         ("rectangular box (BEM)", CK["bem_box"], None, C1, "o"),
-        ("wind along the axis, $C_K$", ck["box"], [ck[f] for f in fits], C2, "s"),
+        ("wind along the axis, $C_K$", ck["box"], [e["CK"] for e in env.values()], C2, "s"),
         (rf"steepest slope ({ms['box'][1]:.0f}° off the axis)", ms["box"][0],
-         [ms[f][0] for f in fits], C2, "D"),
+         [e["cmax"] for e in env.values()], C2, "D"),
         (r"  + suspension axis 1 m downwind", ms["box, x_s=-1 m"][0], None, C2, "D"),
         (r"  + suspension axis 1 m upwind", ms["box, x_s=+1 m"][0], None, C2, "D"),
     ]
@@ -111,18 +111,23 @@ def fig3():
     br = np.radians(be)
     b.axhline(0, color=INK2, lw=0.6)
     b.plot(be, 0.5 * CK["bem_box"] * np.sin(2 * br), color=C1, lw=1.4, label="potential flow, box (Munk)")
-    fam = np.array([MeasuredBox(K).c(br) for K in (4, 5, 6, 7)])
+    fam = np.array([MeasuredBox(K, sets=sets).c(br) for sets in wt.DATA_CHOICES.values()
+                    for K in wt.K_RANGE])
     b.fill_between(be, fam.min(0), fam.max(0), color=C2, alpha=0.22, lw=0)
-    b.plot(be, MeasuredBox().c(br), color=C2, lw=1.4, label=r"fit to the 2.5:1 data ($K$ = 4–7)")
+    b.plot(be, MeasuredBox().c(br), color=C2, lw=1.4, label="Eq. (12), 2.5:1 data (band: 16 fits)")
     r = 0.5
     b.plot(be, 0.09 * (1 - r ** 2) * np.sin(2 * br) - 0.04 * r * np.sin(4 * br), color=INK2, lw=0.9,
-           ls="--", label="Eq. (12), Greenwell fit")
+           ls="--", label="Greenwell fit")
     for nm, mk, col, mf, lab in (("container 1", "s", C2, C2, "container, $L/W$ = 2.5"),
                                  ("smooth box 1", "s", C2, "white", "smooth box, $L/W$ = 2.5"),
                                  ("smooth box 3", "^", C3, "white", "smooth box, $L/W$ = 1"),
                                  ("smooth box 2", "v", C5, "white", "smooth box, $L/W$ = 5")):
         bb, cc = wt.corrected(nm)
         b.plot(bb, cc, ls="none", marker=mk, ms=3.8, color=col, mfc=mf, mec=col, mew=0.8, label=lab)
+    unc = ("container 1 uncorrected",)
+    bb, cc = wt.corrected(unc[0], sets=unc)
+    b.plot(np.abs(bb), np.sign(bb + 1e-9) * cc, ls="none", marker="D", ms=2.6, color=INK2, mfc="none",
+           mew=0.6, label=r"container, uncorrected ($-\beta$ mirrored)")
     b.set_xlim(0, 90); b.set_xticks([0, 15, 30, 45, 60, 75, 90])
     b.set_xlabel(r"incidence $\beta$ (deg)")
     b.set_ylabel(r"$M_a/(q A_s L_n)$")
@@ -142,10 +147,7 @@ def fig4():
     z = np.array(al["z_payload"])
     fig, ax = plt.subplots(1, 2, figsize=(cm.W2, 3.0))
     a = ax[0]
-    import wind_tunnel_data as wt
-    band = np.array([al[f] for f in ("box",) + tuple(f"box, K={K}" for K in (4, 5, 6, 7)
-                                                     if K != wt.K_NOMINAL)])
-    a.fill_between(L, band.min(0), band.max(0), color=C2, alpha=0.22, lw=0)
+    a.fill_between(L, al["box envelope min"], al["box envelope max"], color=C2, alpha=0.22, lw=0)
     a.plot(L, al["box"], color=C2, lw=1.4, ls="--",
            label=rf"sharp-edged box, wind {s3['max_slope']['box'][1]:.0f}° off axis")
     a.plot(L, al["box, x_s=-1 m"], color=C2, lw=1.0, ls=":", label=r"box, axis 1 m downwind")
@@ -173,7 +175,7 @@ def fig4():
     b.plot(th, np.array(hd["box"]), color=C2, lw=1.4, ls="--", label="sharp-edged box, centred axis")
     b.plot(th, np.array(hd["box, x_s=+1 m"]), color=C2, lw=1.0, ls=":",
            label=r"box, axis 1 m towards end A ($x_s$ = +1 m)")
-    b.plot(th, np.array(hd["box, Eq. (12)"]), color=INK2, lw=0.8, ls=(0, (4, 2)), label="Eq. (12)")
+    b.plot(th, np.array(hd["box, Eq. (12)"]), color=INK2, lw=0.8, ls=(0, (4, 2)), label="Greenwell fit")
     b.axhline(0, color=INK2, lw=0.6)
     b.text(90, 0.03, "destabilising", ha="center", va="bottom", fontsize=6.0, color=INK2)
     b.text(90, -0.03, "stabilising", ha="center", va="top", fontsize=6.0, color=INK2)
@@ -304,7 +306,7 @@ def fig6():
     ext = d5["extremes"]
     fig, ax = plt.subplots(1, 3, figsize=(cm.W2, 3.1))
     for a, mname, lab, title in ((ax[0], "munk", "a", "potential flow (Munk)"),
-                                 (ax[1], "box", "b", f"sharp-edged box, {abs(d5['box_theta0_deg']):.0f}° off axis")):
+                                 (ax[1], "box", "b", f"box, wind {abs(d5['box_theta0_deg']):.0f}° off axis")):
         for k_, zeta in enumerate(cm.zeta_values):
             r = resp[f"mating|{mname}|TI=0.06|zeta={zeta}"]
             c = np.array(r["curve"])
@@ -330,11 +332,11 @@ def fig6():
         a.set_title(title, fontsize=7.0, loc="right")
         panel_label(a, lab)
     ax[0].set_ylabel(r"yaw standard deviation $\sigma_\psi$ (deg)")
-    ax[0].legend(loc="lower right", fontsize=5.4)
+    ax[0].legend(loc="upper center", fontsize=5.4, bbox_to_anchor=(0.5, -0.22))
     hh = [Line2D([], [], marker="o", color=INK2, mfc="white", ls="none", label=rf"time domain, $L$ = {cm.L_mating:.0f} m"),
           Line2D([], [], marker="x", color=INK, ls="none", label=r"time domain, $L$ = 100 m"),
           Line2D([], [], marker="+", color=INK, ls="none", label=r"time domain, $L$ = 150 m")]
-    ax[1].legend(handles=hh, loc="lower right", fontsize=5.4)
+    ax[1].legend(handles=hh, loc="upper center", fontsize=5.4, bbox_to_anchor=(0.5, -0.22))
     # (c) physical wind at mating: standard deviation and expected 20-min maximum
     a = ax[2]
     for k_, (mname, nm) in enumerate((("munk", "Munk"), ("box", "box, 20°"))):

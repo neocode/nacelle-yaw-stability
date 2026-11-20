@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.3.0 (2026-11-21)
+
+### Added
+- Uncorrected data of the 20 ft container including negative yaw angles (NASA TM-X-62169, Table II-1) and an uncertainty envelope of the measured box moment: four choices of the data, fit orders 4-7.
+- Bifurcation of the box moment for an oblique wind (transcritical, with a fold slightly below the critical speed).
+
+### Changed
+- Time-domain runs: burn-in of at least three and records of at least ten correlation times of the yaw response, and wind synthesised with a frequency spacing that resolves the yaw resonance (low-damping cases).
+- Two-way coupled boom-tip motion evaluated directly at the synthesis frequencies, with the pendulum damping of each case; mass matrix of the vessel without the load taken about its own centre of gravity.
+- Pendulum angle from the sway relative to the boom tip; interpolated wind-speed limits of the expected largest yaw.
+- Figures 1-8 and graphical abstract revised.
+
 ## 2.2.0 (2026-11-20)
 
 ### Added

@@ -90,8 +90,8 @@ class MeasuredBox:
     axis lies x_s upwind of the geometric centre (as in BluffBox)."""
     name = "sharp-edged box (measured)"
 
-    def __init__(self, K=wt.K_NOMINAL, xs=0.0, CYb=1.35):
-        self.a = wt.fit(K)[0]
+    def __init__(self, K=wt.K_NOMINAL, xs=0.0, CYb=1.35, sets=wt.FIT_SETS):
+        self.a = wt.fit(K, sets)[0]
         self.k = np.arange(1, len(self.a) + 1)
         self.K, self.xs, self.CYb = K, xs, CYb
         self.CK = float(self.dc(0.0))

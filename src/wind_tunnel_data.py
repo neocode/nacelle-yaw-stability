@@ -3,7 +3,9 @@ Measured static yawing moments of rectangular boxes (Section 4.1).
 
 Source: Laub GH, Kodani HM, NASA TM-X-62169 (1972), pitch angle 0:
   Tables VIII-1..3  cargo containers No. 1-3 (data corrected for strut interference),
-  Tables AI-1, AII-1, AIII-1  smooth-sided boxes No. 1-3 of the same dimensions.
+  Table II-1        cargo container No. 1, uncorrected, yaw angles -50..90 deg,
+  Tables AI-1, AII-1, AIII-1  smooth-sided boxes No. 1-3 of the same dimensions
+                    (corrected for the strut loads only, not for interference).
 Full-scale coefficients based on unit dimensions: yawing moment / q in ft^3.
 Sign convention of the report: yaw angle and yawing moment both positive nose
 right, so a negative slope is restoring.  Moments are about the geometric centre.
@@ -30,6 +32,11 @@ YM = {
     "container 3": (3, [0, 8, 12, 16, 20, 25, 30, 35, 40, 45, 50, 60, 75],
                     [13.7, -6.6, -30.0, -44.2, -45.6, -36.2, -22.1, -7.1, 2.9, 14.2, 27.6, 48.0,
                      72.0]),
+    "container 1 uncorrected": (1, [-50, -45, -40, -35, -30, -25, -20, -16, -8, 0, 4, 8, 12, 16, 20,
+                                     25, 30, 35, 40, 45, 50, 60, 75, 90],
+                                [-251.0, -244.6, -213.9, -181.0, -141.8, -95.0, -34.3, 21.8, 119.3, 30.7,
+                                 -60.2, -97.6, -68.1, -13.4, 40.9, 111.6, 165.8, 206.0, 242.7, 273.5,
+                                 296.0, 291.7, 237.0, 38.5]),
     "smooth box 1": (1, [0, 8, 16, 30, 45, 60, 75, 90],
                      [29.9, -94.2, 3.0, 201.6, 245.4, 270.2, 224.6, 31.9]),
     "smooth box 2": (2, [0, 8, 16, 30, 45, 60, 75, 90],
@@ -37,8 +44,16 @@ YM = {
     "smooth box 3": (3, [0, 8, 16, 30, 45, 90],
                      [9.3, -18.8, -49.2, -19.1, 10.9, 4.2]),
 }
-FIT_SETS = ("container 1", "smooth box 1")      # L/W = 2.5
+FIT_SETS = ("container 1", "smooth box 1")      # L/W = 2.5, nominal data choice
 K_NOMINAL = 7
+K_RANGE = (4, 5, 6, 7)
+# alternative, equally defensible choices of the 2.5:1 data (uncertainty envelope)
+DATA_CHOICES = {
+    "corrected container + smooth box": FIT_SETS,
+    "corrected container": ("container 1",),
+    "uncorrected container": ("container 1 uncorrected",),
+    "uncorrected container + smooth box": ("container 1 uncorrected", "smooth box 1"),
+}
 
 
 def ASL(box):
@@ -69,13 +84,14 @@ def fit(K=K_NOMINAL, sets=FIT_SETS):
     return p[len(sets):], dict(zip(sets, p[:len(sets)])), rms
 
 
-def corrected(name, K=K_NOMINAL):
+def corrected(name, K=K_NOMINAL, sets=None):
     """Data with the balance offset removed: offset from the fit for the fitted
     sets, otherwise the mean of the values at 0 deg and at the largest angle
     when it is 90 deg (else the value at 0 deg)."""
     b, c = normalised(name)
-    if name in FIT_SETS:
-        off = fit(K)[1][name]
+    sets = FIT_SETS if sets is None else sets
+    if name in sets:
+        off = fit(K, sets)[1][name]
     elif b[-1] == 90.0:
         off = 0.5 * (c[0] + c[-1])
     else:
