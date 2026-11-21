@@ -116,9 +116,9 @@ def fig3():
                     for K in wt.K_RANGE])
     b.fill_between(be, fam.min(0), fam.max(0), color=C2, alpha=0.22, lw=0)
     b.plot(be, MeasuredBox().c(br), color=C2, lw=1.4, label="Eq. (12), 2.5:1 data (band: 16 fits)")
-    r = 0.5
+    r = 8.0 / 20.0      # aspect ratio of the 2.5:1 data
     b.plot(be, 0.09 * (1 - r ** 2) * np.sin(2 * br) - 0.04 * r * np.sin(4 * br), color=INK2, lw=0.9,
-           ls="--", label="Greenwell fit")
+           ls="--", label="Greenwell fit, $L/W$ = 2.5")
     for nm, mk, col, mf, lab in (("container 1", "s", C2, C2, "container, $L/W$ = 2.5"),
                                  ("smooth box 1", "s", C2, "white", "smooth box, $L/W$ = 2.5"),
                                  ("smooth box 3", "^", C3, "white", "smooth box, $L/W$ = 1"),

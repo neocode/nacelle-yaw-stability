@@ -521,7 +521,7 @@ def run(quick=False):
     vc = {}
     for mname, m in models.items():
         for U in (8.0, 12.0):
-            for hd in (120.0, 150.0, 180.0):
+            for hd in (90.0, 120.0, 150.0, 180.0):
                 st0 = simulate(L, m, 0.01, U, 0.06, z, seeds[:10], vessel=False)
                 st1 = simulate(L, m, 0.01, U, 0.06, z, seeds[:10], vessel=True, heading=hd)
                 st2 = simulate(L, m, 0.01, U, 0.06, z, seeds[:10], vessel=True, heading=hd, Hs=3.0)

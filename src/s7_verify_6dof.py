@@ -23,7 +23,7 @@ import frames as FR               # noqa: E402
 import aero as AE6                # noqa: E402
 sys.path.insert(0, HERE)
 import common as cm               # noqa: E402
-from s5_dynamics import turbulence, integrate, _aero_c   # noqa: E402
+from s5_dynamics import turbulence, integrate, NP   # noqa: E402
 
 
 def reduced_params(pl, zeta, U):
@@ -32,9 +32,12 @@ def reduced_params(pl, zeta, U):
     CK = 2 * dv.V_box * dv.k2mk1 / (cm.A_side * cm.L_n)
     c_s = 2 * zeta * np.sqrt(pl.k_psi * float(P6.PAYLOAD["I_zz"]))
     m = pl.m
-    return np.array([pl.k_psi, float(P6.PAYLOAD["I_zz"]), c_s, 0.0, pl.M_rope, m,
-                     m * cm.g, pl.L + pl.h_att, 0.5 * cm.rho_air * cm.A_side * cm.L_n,
-                     0.0, 0, 0, 0, 0, CK, 0, 0, 1, 0, 0])
+    P = np.zeros(NP)
+    P[:20] = [pl.k_psi, float(P6.PAYLOAD["I_zz"]), c_s, 0.0, pl.M_rope, m,
+              m * cm.g, pl.L + pl.h_att, 0.5 * cm.rho_air * cm.A_side * cm.L_n,
+              0.0, 0, 0, 0, 0, CK, 0, 0, 1, 0, 0]
+    P[23] = 0.5 * CK            # Munk moment c = (C_K/2) sin 2 beta (sine-series slot)
+    return P
 
 
 def run():

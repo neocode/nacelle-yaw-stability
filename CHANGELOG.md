@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.4.1 (2026-11-22)
+
+### Fixed
+- Six-degree-of-freedom comparison (`s7_verify_6dof.py`) adapted to the parameter vector of version 2.2.0; the stored comparison is reproduced exactly.
+- Wind-sea vessel study extended to beam seas (90 deg).
+- Greenwell's fit in Fig. 3(b) drawn for the aspect ratio of the data (2.5:1).
+- Sources of the input parameters documented in `common.py`.
+
 ## 2.4.0 (2026-11-21)
 
 ### Added
