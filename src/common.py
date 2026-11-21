@@ -22,8 +22,8 @@ rho_air = 1.225        # kg/m^3   (ISO standard atmosphere, IEC 61400-1)
 rho_w = 1025.0         # kg/m^3
 
 # -------------------------------------------------- payload: IEA 15 MW nacelle
-m_p = 820_888.0        # kg       Gaertner et al. (2020) Table 5-1, nacelle total
-I_zz = 1.8682468e7     # kg m^2   same table, about the vertical axis through the CG
+m_p = 820_888.0        # kg       Gaertner et al. (2020); v1.0 nacelle mass properties, nacelle total incl. hub (190 t) and yaw system (100 t)
+I_zz = 1.8682468e7     # kg m^2   same table, about the vertical axis through the CG of the total
 L_n, W_n, H_n = 20.0, 10.0, 10.0   # m  rectangular envelope (ASSUMED from component geometry)
 V_box = L_n * W_n * H_n            # m^3
 A_side = L_n * H_n                 # m^2  side-face area (reference area)
@@ -31,9 +31,9 @@ A_side = L_n * H_n                 # m^2  side-face area (reference area)
 # ----------------------------------------------- hook block, rigging and hoist rope
 m_hb = 60_000.0        # kg   hook block + lifting yoke (ASSUMED)
 d_rope = 0.076         # m    rope diameter (ASSUMED, sized below)
-mu_rope = 26.6         # kg/m mass per metre of one fall, ~0.0046 d^2[mm] (catalogue order)
-MBL = 5.5e6            # N    minimum breaking load of a 76 mm rotation-resistant rope (order)
-C_torque = 0.0076      # -    torque factor, Bridon Dyform 34LR (0.76 % of d)
+mu_rope = 26.6         # kg/m mass per metre (assumed; catalogue 76 mm rotation-resistant offshore crane rope: 28.9 kg/m)
+MBL = 5.3e6            # N    minimum breaking force, 76 mm rotation-resistant offshore crane rope (ArcelorMittal Notor HP/35(W)xK31WS)
+C_torque = 0.0076      # -    torque factor, approximate maximum for a rotation-resistant rope at 20 % MBF (Bridon Dyform 34LR)
 n_falls = 12           # -    falls (rope parts) between upper and lower blocks
 n_sheaves = 6          # -    sheaves per block (two falls per sheave)
 D_sheave = 2.4         # m    sheave pitch diameter, upper and lower blocks (ASSUMED)
@@ -74,7 +74,7 @@ def Lambda1(z):
 zeta_values = (0.002, 0.01, 0.05)   # structural yaw damping ratio (not measured; swept)
 
 # ----------------------------------------------------------------------- waves
-Hs, Tp, gamma_J = 1.5, 7.65, 3.3
+Hs, Tp, gamma_J = 1.5, 7.65, 3.3   # expected sea state at 10 m/s, IEA 15 MW reference site (Stewart et al. 2016)
 
 # ---------------------------------------------------------------------- tuggers
 M_t_max = 4.0e5        # N m   available tugger yaw couple (four 100 kN lines, ASSUMED)
