@@ -67,4 +67,29 @@ for U in (8.0,):
                     max_abs_heave=d.summarize(heave, "max_abs"))
 out["parametric_swell"] = par
 print(json.dumps(par, indent=0))
+
+# (4) swell near the coupled roll-pendulum modes at mating (two-way coupled boom-tip motion)
+sw = {}
+for mname, mm in (("munk", m), ("box", box)):
+    base = d.simulate(L, mm, 0.01, 8.0, 0.06, z, range(10))
+    for Tsw in (18.6, 11.3):
+        for Hs in (1.0, 2.0):
+            for hd in (90.0, 120.0):
+                st_all = d.simulate(L, mm, 0.01, 8.0, 0.06, z, range(10), vessel=True, heading=hd,
+                                    Hs=Hs, Tp=Tsw)
+                st_h = d.simulate(L, mm, 0.01, 8.0, 0.06, z, range(10), vessel=True, heading=hd,
+                                  Hs=Hs, Tp=Tsw, only="horiz")
+                sw[f"{mname}|Tp={Tsw}|Hs={Hs}|hd={hd}"] = dict(
+                    none=d.summarize(base, "std"), all=d.summarize(st_all, "std"),
+                    horiz=d.summarize(st_h, "std"), diff_all_pct=d.paired(base, st_all),
+                    diff_horiz_pct=d.paired(base, st_h), sway_rel=d.summarize(st_all, "sway_rel_std"))
+out["swell_coupled_modes"] = sw
+print(json.dumps(sw, indent=0))
+
+# (5) wind synthesis: standard deviations of one realisation against the target
+U, TI, zz = 10.0, 0.06, 150.0
+u, v = d.turbulence(0, 4200.0, 0.05, U, TI, zz)
+out["wind_synthesis"] = dict(sigma_u_ratio=float(u.std() / (TI * U)),
+                             sigma_v_ratio=float(v.std() / (cm.r_sigma_v * TI * U)))
+print(out["wind_synthesis"])
 json.dump(out, open(f"{cm.RES}/s5b_checks.json", "w"), indent=1)

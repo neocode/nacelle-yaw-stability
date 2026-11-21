@@ -157,7 +157,7 @@ def _rhs(s, U, q, P):
     # aerodynamic damping acts on the rotation rate relative to the rotating wind
     # direction (strip theory with frozen turbulence: includes the gust-gradient moment)
     ddpsi = (-k * fac * np.sin(psi - psv) - P[2] * (dpsi - dpsv) + P[3] * (dth - dpsi)
-             + Ma + P[4] + Mt) / I
+             + Ma + P[4] * fac + Mt) / I
     sp = np.sqrt(sp2)
     kx = P[6] * fac / P[7]
     ddx = (-kx * (x - xt) - P[20] * (dx - dxt) + P[9] * sp * ux) / P[5]
@@ -345,6 +345,16 @@ def simulate(L, model, zeta_s, U, TI, z, seeds, record=None, burn=600.0, dt=0.05
     return stats
 
 
+def paired(base, other, key="std"):
+    """Mean and 95 % half-width of the paired difference (other - base) over common
+    seeds, in per cent of the mean of base."""
+    a = np.array([x[key] for x in base]); b = np.array([x[key] for x in other])
+    d = 100.0 * (b - a) / a.mean()
+    from scipy.stats import t as tdist
+    hw = tdist.ppf(0.975, len(d) - 1) * d.std(ddof=1) / np.sqrt(len(d))
+    return float(d.mean()), float(hw)
+
+
 def summarize(stats, key):
     x = np.array([s[key] for s in stats])
     n = len(x)
@@ -521,19 +531,22 @@ def run(quick=False):
                     sway_no=summarize(st0, "sway_std"), sway_v=summarize(st1, "sway_std"),
                     sway_rel_v=summarize(st1, "sway_rel_std"), sway_rel_Hs3=summarize(st2, "sway_rel_std"),
                     sway_angle_v=summarize(st1, "sway_angle_std"),
-                    sway_angle_Hs3=summarize(st2, "sway_angle_std"))
+                    sway_angle_Hs3=summarize(st2, "sway_angle_std"),
+                    diff_vessel_pct=paired(st0, st1), diff_Hs3_pct=paired(st0, st2))
                 if hd == 120.0:
                     st4 = simulate(L, m, 0.01, U, 0.06, z, seeds[:10], vessel=True, heading=hd,
                                    two_way=False)
                     row["vessel_one_way"] = summarize(st4, "std")
                     row["sway_v_one_way"] = summarize(st4, "sway_std")
                     row["sway_rel_v_one_way"] = summarize(st4, "sway_rel_std")
+                    row["diff_one_way_vs_two_way_pct"] = paired(st1, st4)
                     for zp in (0.002, 0.05):
                         st3 = simulate(L, m, 0.01, U, 0.06, z, seeds[:10], vessel=True, heading=hd,
                                        zeta_p=zp)
                         row[f"vessel_zeta_p={zp}"] = summarize(st3, "std")
                         row[f"sway_v_zeta_p={zp}"] = summarize(st3, "sway_std")
                         row[f"sway_rel_v_zeta_p={zp}"] = summarize(st3, "sway_rel_std")
+                        row[f"diff_zeta_p={zp}_pct"] = paired(st0, st3)
                 vc[f"{mname}|U={U}|hd={hd}"] = row
         print("vessel", mname, time.time() - t0)
     res["vessel_coupling"] = vc

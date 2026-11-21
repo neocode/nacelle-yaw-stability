@@ -199,6 +199,27 @@ def run():
             U_all.append([U_crit(cm.suspension(L).k_psi, m) for L in Ls])
             env[f"{ch} | K={K}"] = row
     res["envelope"] = env
+    # secant slopes of the 2.5:1 data between 12 and 25 deg (local evidence for the
+    # steepest slope, independent of the fit order)
+    sec = []
+    for nm, sets in (("container 1", None), ("container 1 uncorrected", ("container 1 uncorrected",)),
+                     ("smooth box 1", None)):
+        bb, cc = wt.corrected(nm, sets=sets)
+        msk = (bb >= 12) & (bb <= 30)
+        bs, cs = bb[msk], cc[msk]
+        for i in range(len(bs) - 1):
+            if bs[i] < 25:
+                sec.append(dict(data=nm, b0=float(bs[i]), b1=float(bs[i + 1]),
+                                slope=float((cs[i + 1] - cs[i]) / np.radians(bs[i + 1] - bs[i]))))
+    smin, smax = min(x["slope"] for x in sec), max(x["slope"] for x in sec)
+    res["secant"] = dict(slopes=sec, min=smin, max=smax,
+                         U_crit={str(int(L)): [U_div(cm.suspension(L).k_psi, smax),
+                                               U_div(cm.suspension(L).k_psi, smin)] for L in Lkeys})
+    res["along_lift"]["box secant max"] = [U_div(cm.suspension(L).k_psi, smin) for L in Ls]
+    hb = np.array([[float(MeasuredBox(K, sets=st).dc(-t)) for t in th]
+                   for st in wt.DATA_CHOICES.values() for K in wt.K_RANGE])
+    res["heading"]["box band min"] = hb.min(0).tolist()
+    res["heading"]["box band max"] = hb.max(0).tolist()
     U_all = np.array(U_all)
     res["along_lift"]["box envelope min"] = U_all.min(0).tolist()
     res["along_lift"]["box envelope max"] = U_all.max(0).tolist()

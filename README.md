@@ -13,7 +13,7 @@ Every number, table and figure of the paper is produced by the scripts in `src/`
 | Script | Paper section | Content | Output |
 |---|---|---|---|
 | `src/common.py` | 2.2, Table 1 | baseline parameters (IEA 15 MW nacelle, hoist reeving, crane vessel), derived suspension quantities, figure style | – |
-| `src/s1_suspension.py` | 3, Table 2, Fig. 2 | closed-form restoring moment of a multi-fall suspension; independent 3D equilibrium of the block (Levenberg–Marquardt); sheave friction; wire-rope cabling benchmark; elastic-torsion bound | `results/s1_suspension.json` |
+| `src/s1_suspension.py` | 3, Table 2, Fig. 2 | closed-form restoring moment of a multi-fall suspension; independent 3D equilibrium of the block (Levenberg–Marquardt); sheave friction; geometric bias of single-rope and mirrored reeving; wire-rope cabling benchmark; elastic-torsion bound | `results/s1_suspension.json` |
 | `src/s2_aero_bem.py` | 4.1, Fig. 3, Fig. 9(b,c) | added masses in an unbounded fluid with Capytaine: prolate spheroid vs Lamb, superellipsoids, rectangular box; aerodynamic yaw-stiffness coefficients | `results/s2_aero_bem.json` |
 | `src/wind_tunnel_data.py` | 4.1, Fig. 3(b) | yawing moments of rectangular boxes digitised from NASA TM-X-62169 (Laub and Kodani, 1972; Tables II-1, VIII-1 to VIII-3, AI-1, AII-1, AIII-1, pitch 0); sine-series fits to the 2.5:1 box for four choices of the data | – |
 | `src/aero_models.py` | 4.1 | potential-flow (Munk) moment, measured sharp-edged-box moment, Greenwell's fit; steepest slope; divergence speed | – |
@@ -79,4 +79,4 @@ See `CHANGELOG.md`.
 
 ## Licence
 
-MIT, see `LICENSE`. If you use this code, please cite the paper and this repository (`CITATION.cff`). Archive of all versions: https://doi.org/10.5281/zenodo.24403652. Version 2.3.0, which corresponds to the paper: https://doi.org/10.5281/zenodo.24408864 (version 2.2.0: https://doi.org/10.5281/zenodo.24407988; version 2.0.0: https://doi.org/10.5281/zenodo.24403653).
+MIT, see `LICENSE`. If you use this code, please cite the paper and this repository (`CITATION.cff`). Archive of all versions: https://doi.org/10.5281/zenodo.24403652. Version 2.4.0 corresponds to the paper (earlier versions: 2.3.0 https://doi.org/10.5281/zenodo.24408864; 2.2.0 https://doi.org/10.5281/zenodo.24407988; 2.0.0 https://doi.org/10.5281/zenodo.24403653).

@@ -191,6 +191,22 @@ def run():
         axle=float(np.sqrt(cm.r_eq2(a_axle))),
         axle_eta098=float(np.sqrt(cm.r_eq2(a_axle, a_axle, 0.98 ** np.arange(n)))),
         axle_eta096=float(np.sqrt(cm.r_eq2(a_axle, a_axle, 0.96 ** np.arange(n)))))
+    # geometric bias of the reeving: with one continuous rope on parallel axles the upper
+    # sheaves lie midway between the lower ones, so the two rows of falls lean by +p/2 and
+    # -p/2; with two mirrored ropes the leans of the two halves cancel
+    b = a_axle
+    a1 = b.copy()
+    a1[b[:, 0] > 0, 1] += cm.p_sheave / 2
+    a1[b[:, 0] < 0, 1] -= cm.p_sheave / 2
+    a2 = b.copy()
+    for i in range(n):
+        sgn = 1.0 if (b[i, 0] > 0) == (b[i, 1] > 0) else -1.0
+        a2[i, 1] += sgn * cm.p_sheave / 2
+    bias = lambda a: float(np.degrees(np.arcsin(np.mean(b[:, 0] * a[:, 1] - b[:, 1] * a[:, 0])
+                                                / cm.r_eq2(a, b))))
+    out["reeving_bias"] = dict(single_rope_deg=bias(a1), mirrored_two_ropes_deg=bias(a2),
+                               closed_form_deg=float(np.degrees(np.arcsin(
+                                   cm.D_sheave * cm.p_sheave / 4 / cm.r_eq2()))))
     with open(f"{cm.RES}/s1_suspension.json", "w") as fh:
         json.dump(out, fh, indent=1)
     return out

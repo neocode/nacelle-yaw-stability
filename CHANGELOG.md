@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.4.0 (2026-11-21)
+
+### Added
+- Geometric yaw bias of the reeving: single continuous rope on parallel axles (5.3 deg) versus mirror-symmetric reeving with two ropes (none).
+- Secant slopes of the wind-tunnel data near the steepest slope; critical speeds of the box over the fits and the secant slopes.
+- Swell at the periods of the coupled roll-pendulum and pendulum-pitch modes (all paths and horizontal path); paired differences with and without vessel motion; check of the wind synthesis.
+
+### Changed
+- Rope torque scaled with the vertical boom-tip acceleration in the time-domain model.
+- Figures 1(b), 2-4, 6-9 and graphical abstract revised.
+
 ## 2.3.0 (2026-11-21)
 
 ### Added

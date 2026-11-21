@@ -46,6 +46,20 @@ def test_suspension_properties_at_mating():
     assert np.degrees(s.psi0) == pytest.approx(0.26, abs=0.01)
 
 
+def test_reeving_bias():
+    """One continuous rope on parallel axles: rows lean by +-p/2, twist sin(psi) = D p /(4 r_eq^2);
+    mirrored reeving with two ropes: no bias."""
+    b = cm.fall_positions()
+    a1 = b.copy()
+    a1[b[:, 0] > 0, 1] += cm.p_sheave / 2
+    a1[b[:, 0] < 0, 1] -= cm.p_sheave / 2
+    bias = np.mean(b[:, 0] * a1[:, 1] - b[:, 1] * a1[:, 0]) / cm.r_eq2(a1, b)
+    assert np.degrees(np.arcsin(bias)) == pytest.approx(5.31, abs=0.01)
+    a2 = b.copy()
+    a2[:, 1] += np.where((b[:, 0] > 0) == (b[:, 1] > 0), 1.0, -1.0) * cm.p_sheave / 2
+    assert abs(np.mean(b[:, 0] * a2[:, 1] - b[:, 1] * a2[:, 0])) < 1e-12
+
+
 # ---------------------------------------------------------------- Section 4
 def test_lamb_coefficients_and_bem():
     from s2_aero_bem import lamb_prolate, mesh_superellipsoid, added_masses

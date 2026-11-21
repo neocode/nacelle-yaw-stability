@@ -45,7 +45,8 @@ def fig2():
     b.set_xlim(cm.L_mating, 150); b.set_ylim(0.008, 0.3)
     b.set_xlabel(r"fall length $L$ (m)")
     b.set_ylabel("natural frequency (Hz)")
-    b.legend(loc="lower left", fontsize=6.5)
+    b.text(100, 0.0155, r"yaw, $f_\psi$", color=C1, fontsize=6.5, ha="center", va="bottom")
+    b.text(100, 0.050, r"pendulum, $f_p$", color=C2, fontsize=6.5, ha="center", va="bottom")
     panel_label(b, "b")
     # (c) static twist
     c_ = ax[2]
@@ -81,7 +82,7 @@ def fig3():
         ("rectangular box (BEM)", CK["bem_box"], None, C1, "o"),
         ("wind along the axis, $C_K$", ck["box"], [e["CK"] for e in env.values()], C2, "s"),
         (rf"steepest slope ({ms['box'][1]:.0f}° off the axis)", ms["box"][0],
-         [e["cmax"] for e in env.values()], C2, "D"),
+         [e["cmax"] for e in env.values()] + [s3["secant"]["min"], s3["secant"]["max"]], C2, "D"),
         (r"  + suspension axis 1 m downwind", ms["box, x_s=-1 m"][0], None, C2, "D"),
         (r"  + suspension axis 1 m upwind", ms["box, x_s=+1 m"][0], None, C2, "D"),
     ]
@@ -94,7 +95,7 @@ def fig3():
     a.axvline(0, color=INK2, lw=0.6)
     a.set_yticks(y)
     a.set_yticklabels([r[0] for r in rows], fontsize=6.6)
-    a.set_xlim(-0.5, 0.81)
+    a.set_xlim(-0.56, 0.81)
     a.set_xticks([-0.4, -0.2, 0, 0.2, 0.4, 0.6])
     a.set_xlabel(r"aerodynamic stiffness coefficient $c'$")
     a.grid(axis="y", visible=False)
@@ -147,7 +148,8 @@ def fig4():
     z = np.array(al["z_payload"])
     fig, ax = plt.subplots(1, 2, figsize=(cm.W2, 3.0))
     a = ax[0]
-    a.fill_between(L, al["box envelope min"], al["box envelope max"], color=C2, alpha=0.22, lw=0)
+    a.fill_between(L, al["box envelope min"], np.maximum(al["box envelope max"], al["box secant max"]),
+                   color=C2, alpha=0.22, lw=0)
     a.plot(L, al["box"], color=C2, lw=1.4, ls="--",
            label=rf"sharp-edged box, wind {s3['max_slope']['box'][1]:.0f}° off axis")
     a.plot(L, al["box, x_s=-1 m"], color=C2, lw=1.0, ls=":", label=r"box, axis 1 m downwind")
@@ -172,6 +174,7 @@ def fig4():
     hd = s3["heading"]
     th = np.array(hd["theta_deg"])
     b.plot(th, np.array(hd["Munk (BEM box)"]), color=C1, lw=1.5, label="potential flow (Munk)")
+    b.fill_between(th, hd["box band min"], hd["box band max"], color=C2, alpha=0.18, lw=0)
     b.plot(th, np.array(hd["box"]), color=C2, lw=1.4, ls="--", label="sharp-edged box, centred axis")
     b.plot(th, np.array(hd["box, x_s=+1 m"]), color=C2, lw=1.0, ls=":",
            label=r"box, axis 1 m towards end A ($x_s$ = +1 m)")
@@ -373,7 +376,10 @@ def fig8():
         for j, (kd, mk, ms_, mf) in enumerate(((0.0, "o", 6.0, "white"), (6e7, "s", 2.6, cm.SERIES[k_]))):
             vals = np.array(th[f"L={L}|kd={kd:g}"])[1::3]
             a.plot(kp[1::3], vals, ls="none", marker=mk, ms=ms_, mfc=mf, mec=cm.SERIES[k_], mew=0.8,
-                   label=(r"eigenvalues, $k_d$ = 0" if kd == 0 else r"eigenvalues, $k_d$ = 6$\times$10$^7$") if k_ == 0 else None)
+                   label=None)
+    a.plot([], [], ls="none", marker="o", ms=6.0, mfc="white", mec=INK2, mew=0.8, label=r"eigenvalues, $k_d$ = 0")
+    a.plot([], [], ls="none", marker="s", ms=2.6, mfc=INK2, mec=INK2, mew=0.8,
+           label=r"eigenvalues, $k_d$ = 6$\times$10$^7$ N m s/rad")
     a.set_xscale("log")
     a.set_xlim(1e4, 1e7); a.set_ylim(0, 100)
     a.set_xlabel(r"proportional gain $k_p$ (N m/rad)")
@@ -409,7 +415,7 @@ def fig9():
     fig, ax = plt.subplots(1, 3, figsize=(cm.W2, 2.3), gridspec_kw=dict(width_ratios=[1.5, 1, 1]))
     a = ax[0]
     t = np.array(s7["turbulent"]["t"])
-    a.plot(t, s7["turbulent"]["psi_6dof"], color=C1, lw=1.6, label="6-DOF rigid-body plant")
+    a.plot(t, s7["turbulent"]["psi_6dof"], color=C1, lw=1.6, label="6-DOF rigid-body model")
     a.plot(t, s7["turbulent"]["psi_red"], color=C2, lw=0.9, ls="--", label="reduced yaw model")
     a.set_xlim(0, 1500)
     a.set_xlabel("time (s)")
@@ -424,7 +430,8 @@ def fig9():
     b.plot(nf, [r["k2"] for r in sp], marker="s", color=C2, ms=3.8, mfc="white", label=r"$k_2$ (BEM)")
     b.axhline(s2["lamb"]["k1"], color=C1, lw=0.8, ls=":")
     b.axhline(s2["lamb"]["k2"], color=C2, lw=0.8, ls=":")
-    b.text(330, s2["lamb"]["k2"] - 0.045, "dotted: Lamb (exact)", fontsize=6.0, ha="left", color=INK2)
+    b.text(0.97, 0.97, "dotted: Lamb (exact)", fontsize=6.0, ha="right", va="top", color=INK2,
+           transform=b.transAxes)
     b.set_xscale("log")
     b.set_xlabel("panels")
     b.set_ylabel("added-mass coefficient")
