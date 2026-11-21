@@ -79,4 +79,4 @@ See `CHANGELOG.md`.
 
 ## Licence
 
-MIT, see `LICENSE`. If you use this code, please cite the paper and this repository (`CITATION.cff`). Archive of all versions: https://doi.org/10.5281/zenodo.24403652. Version 2.4.1 corresponds to the paper (earlier versions: 2.3.0 https://doi.org/10.5281/zenodo.24408864; 2.2.0 https://doi.org/10.5281/zenodo.24407988; 2.0.0 https://doi.org/10.5281/zenodo.24403653).
+MIT, see `LICENSE`. If you use this code, please cite the paper and this repository (`CITATION.cff`). Archive of all versions: https://doi.org/10.5281/zenodo.24403652. Version 2.4.1, which corresponds to the paper: https://doi.org/10.5281/zenodo.24430467 (earlier versions: 2.3.0 https://doi.org/10.5281/zenodo.24408864; 2.2.0 https://doi.org/10.5281/zenodo.24407988; 2.0.0 https://doi.org/10.5281/zenodo.24403653).
