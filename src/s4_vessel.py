@@ -69,13 +69,14 @@ def pendulum(L, zeta_p=None):
     return mL, mL * cm.g / lp, 2 * zeta_p * mL * np.sqrt(cm.g / lp)
 
 
-def vessel_mass_without_load(M):
-    """Rigid-body mass matrix (about the total CG) of the vessel without the suspended
-    load: mass m_v = M11 - m_L at r_v = -m_L r_tip / m_v, with the assumed radii of
-    gyration about its own centre of gravity."""
+def vessel_mass_without_load(M, r_tip=R_TIP, rg=np.zeros(3)):
+    """Rigid-body mass matrix (about the reference point, the baseline total CG) of the
+    vessel without the suspended load: mass m_v = M11 - m_L at
+    r_v = (M11 r_g - m_L r_tip) / m_v, with the assumed radii of gyration about its own
+    centre of gravity.  r_g: total CG relative to the reference point (sensitivity cases)."""
     mL = cm.m_p + cm.m_hb
     mv = M[0, 0] - mL
-    rv = -mL * R_TIP / mv
+    rv = (M[0, 0] * np.asarray(rg) - mL * np.asarray(r_tip)) / mv
     Ic = np.diag(np.diag(M)[3:]) * mv / M[0, 0]
     S = skew(rv)
     Mv = np.zeros((6, 6))
@@ -86,14 +87,38 @@ def vessel_mass_without_load(M):
     return Mv
 
 
-def coupled_rao(bem, L, zeta_p=None, rigid=False):
+def apply_variant(bem, variant=None):
+    """Vessel model of a sensitivity case.  variant keys: rxx (factor on the roll radius of
+    gyration), zeta_roll (viscous roll damping ratio), dKG (vertical shift of the centre of
+    gravity [m]: the roll and pitch restoring change by -m g dKG, the hydrodynamic
+    coefficients stay referred to the baseline centre of gravity), tip_dx (longitudinal
+    shift of the crane, i.e. of the boom tip [m]).  Returns the modified coefficients
+    (with the CG offset 'rg') and the boom-tip position."""
+    v = variant or {}
+    b = dict(bem)
+    M = np.array(bem["M"], float).copy()
+    C = np.array(bem["C"], float).copy()
+    m = M[0, 0]
+    M[3, 3] *= v.get("rxx", 1.0) ** 2
+    dKG = v.get("dKG", 0.0)
+    C[3, 3] -= m * cm.g * dKG
+    C[4, 4] -= m * cm.g * dKG
+    Bext = np.array(bem["Bext"], float).copy()
+    A44 = np.asarray(bem["A"])[:, 3, 3].mean()
+    Bext[3, 3] = 2 * v.get("zeta_roll", ZETA_ROLL) * np.sqrt(C[3, 3] * (M[3, 3] + m * dKG ** 2 + A44))
+    b.update(M=M, C=C, Bext=Bext, rg=np.array([0.0, 0.0, dKG]))
+    return b, R_TIP + np.array([v.get("tip_dx", 0.0), 0.0, 0.0])
+
+
+def coupled_rao(bem, L, zeta_p=None, rigid=False, r_tip=R_TIP):
     """Vessel + pendulum (8 unknowns per frequency).  Returns the vessel RAO,
     the boom-tip RAO and the horizontal RAO of the load (absolute).
     rigid=True: load fixed to the boom tip (low-frequency limit)."""
     om, M, A, Bd, Bext, C, Kh, Fex = (bem[k] for k in ("omega", "M", "A", "B", "Bext", "C", "Kh", "Fex"))
     mL, Kp, cp = pendulum(L, zeta_p)
+    J_TIP = np.hstack([np.eye(3), -skew(r_tip)])
     Jh, Jv = J_TIP[:2], J_TIP[2:3]
-    Mv = vessel_mass_without_load(M)
+    Mv = vessel_mass_without_load(M, r_tip, bem.get("rg", np.zeros(3)))
     nh = Fex.shape[1]
     rao = np.zeros((len(om), nh, 6), complex)
     xL = np.zeros((len(om), nh, 2), complex)
@@ -118,14 +143,15 @@ def coupled_rao(bem, L, zeta_p=None, rigid=False):
     return rao, tip, xL
 
 
-def coupled_modes(bem, L):
+def coupled_modes(bem, L, r_tip=R_TIP):
     """Undamped natural periods of the coupled vessel-pendulum system with the
     added mass at the natural frequency (fixed point), and the share of the
     kinetic energy in vessel roll and in the pendulum for each mode."""
     om, M, A, C, Kh = (bem[k] for k in ("omega", "M", "A", "C", "Kh"))
     mL, Kp, _ = pendulum(L)
+    J_TIP = np.hstack([np.eye(3), -skew(r_tip)])
     Jh, Jv = J_TIP[:2], J_TIP[2:3]
-    Mv = vessel_mass_without_load(M)
+    Mv = vessel_mass_without_load(M, r_tip, bem.get("rg", np.zeros(3)))
     K8 = np.zeros((8, 8))
     K8[:6, :6] = C + Kh + Kp * Jh.T @ Jh
     K8[:6, 6:] = -Kp * Jh.T
@@ -268,12 +294,12 @@ def coupling(bem, rao1, tip1):
     return res
 
 
-def coupled_on_grid(w, L, zeta_p=None):
+def coupled_on_grid(w, L, zeta_p=None, variant=None):
     """Two-way coupled RAOs evaluated directly at the frequencies w (the BEM
     coefficients are interpolated linearly; outside the BEM range zero is returned).
     Used for the time-domain synthesis, so that the pendulum peak is resolved for
-    any pendulum damping."""
-    bem = dict(np.load(f"{cm.RES}/s4_bem.npz"))
+    any pendulum damping.  variant: sensitivity case (apply_variant)."""
+    bem, r_tip = apply_variant(dict(np.load(f"{cm.RES}/s4_bem.npz")), variant)
     om = bem["omega"]
     inside = (w >= om[0]) & (w <= om[-1])
     wi = w[inside]
@@ -281,7 +307,7 @@ def coupled_on_grid(w, L, zeta_p=None):
                              for k in range(X[0].size)], axis=1).reshape((len(wi),) + X.shape[1:])
     Fex = bem["Fex"]
     g = dict(bem, omega=wi, A=ip(bem["A"]), B=ip(bem["B"]), Fex=ip(Fex.real) + 1j * ip(Fex.imag))
-    rao, tip, xL = coupled_rao(g, L, zeta_p)
+    rao, tip, xL = coupled_rao(g, L, zeta_p, r_tip=r_tip)
     n = len(w)
     R = np.zeros((n,) + rao.shape[1:], complex); R[inside] = rao
     Tp = np.zeros((n,) + tip.shape[1:], complex); Tp[inside] = tip

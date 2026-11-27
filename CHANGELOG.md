@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.5.0 (2026-11-27)
+
+### Added
+- Yaw stiffness of the connection between hook block and payload (`s3b_connection.py`): series reduction of the divergence speed, gravitational stiffness of twin-hook slings, two-mass block-payload model (eigenvalue threshold, modes, spectral response) and the tolerance speed versus the connection stiffness and the aerodynamic slope.
+- Operability at mating (`s5c_operability.py`): probability that the largest yaw in 20-min windows exceeds tolerances of 0.5, 1 and 2 deg (time domain); Froya spectral shape; sensitivity to the aerodynamic damping of the box; reduced frequency of the yaw mode.
+- Sensitivity of the coupled roll-pendulum modes and of the swell case to the vessel model (`s4b_vessel_sensitivity.py`): roll radius of gyration, centre of gravity, roll and pendulum damping, crane position.
+- Two physical tugger lines with one-sided tension and moving anchors in the time-domain model, common-mode sway feedback, and critical actuator lag and delay margin versus the controller gains (`s6b_tuggers.py`).
+- Three-dimensional check of the single-rope and two-rope reevings with leaning falls (`s1_suspension.py`).
+- Tests for these additions.
+
+### Changed
+- Figures renumbered (new Fig. 5: connection stiffness); Fig. 6 marks the range beyond the validity of the geometric model; Fig. 7 adds the exceedance probability; Fig. 9 adds the lag and delay margins; graphical abstract shows the effect of a sling connection.
+- Vessel model accepts sensitivity variants (`s4_vessel.apply_variant`).
+
 ## 2.4.1 (2026-11-22)
 
 ### Fixed

@@ -11,8 +11,9 @@ import time
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "src")
 
-ANALYSES = ["s1_suspension.py", "s2_aero_bem.py", "s3_statics.py", "s4_vessel.py",
-            "s5_dynamics.py", "s5b_checks.py", "s6_control.py", "s7_verify_6dof.py"]
+ANALYSES = ["s1_suspension.py", "s2_aero_bem.py", "s3_statics.py", "s3b_connection.py", "s4_vessel.py",
+            "s4b_vessel_sensitivity.py", "s5_dynamics.py", "s5b_checks.py", "s5c_operability.py",
+            "s6_control.py", "s6b_tuggers.py", "s7_verify_6dof.py"]
 FIGURES = ["make_figures.py", "fig1_schematic.py", "graphical_abstract.py"]
 
 

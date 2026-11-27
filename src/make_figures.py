@@ -1,4 +1,4 @@
-"""Figures 2-9 of the paper (single consistent style)."""
+"""Figures 2-10 of the paper (single consistent style)."""
 import json
 import numpy as np
 import matplotlib
@@ -19,7 +19,7 @@ def fig2():
     # (a) restoring moment
     a = ax[0]
     ps = np.linspace(0, 150, 301)
-    a.plot(ps, np.sin(np.radians(ps)), color=C1, lw=1.4, label="closed form (exact)")
+    a.plot(ps, np.sin(np.radians(ps)), color=C1, lw=1.4, label="closed form, Eq. (5)")
     a.plot(ps, np.radians(ps), color=INK2, lw=1.0, ls="--", label=r"linear, $k_\psi\psi$")
     c = s1["moment_cases"][f"axle_L{int(cm.L_mating)}_eta1.0"]
     a.plot(c["psi_deg"], -np.array(c["M_num"]) / c["k_cf"], ls="none", marker="o", mfc="white",
@@ -214,15 +214,19 @@ def fig5():
         a.plot(u, amp, color=INK2, lw=0.9, ls="--")
         for sgn in (1, -1):
             a.axhline(sgn * 1.0, color=INK2, lw=0.6, ls=":")
+        for lo, hi in ((30.0, 200.0), (-200.0, -30.0)):
+            a.axhspan(lo, hi, color=GRID, alpha=0.55, lw=0, zorder=0)
+        a.text(0.03, 0.985 if lab == "a" else 0.02, "beyond the validity of the geometric model (|ψ| > 30°)",
+               transform=a.transAxes, fontsize=5.6, color=INK2, va="top" if lab == "a" else "bottom")
         a.set_xlim(0, 1.6); a.set_ylim(*ylim)
         a.set_xlabel(r"$U/U_{div}$")
         a.set_title(title, fontsize=7.5, color=INK)
         panel_label(a, lab)
     ax[0].set_ylabel(r"equilibrium yaw $\psi_{eq}$ (deg)")
-    ax[0].text(0.22, 30, r"linear amplification" "\n" r"$\psi_0/(1-U^2/U_{div}^2)$", fontsize=6.3,
+    ax[0].text(0.22, 18, r"linear amplification" "\n" r"$\psi_0/(1-U^2/U_{div}^2)$", fontsize=6.3,
                color=INK2)
-    ax[0].annotate("", xy=(0.93, 12), xytext=(0.55, 29), arrowprops=dict(arrowstyle="->", color=INK2, lw=0.6))
-    ax[0].text(1.22, 30, r"$\cos\psi^*=(U_{div}/U)^2$", fontsize=6.5, color=C1)
+    ax[0].annotate("", xy=(0.93, 10), xytext=(0.55, 17), arrowprops=dict(arrowstyle="->", color=INK2, lw=0.6))
+    ax[0].text(1.2, 76, r"$\cos\psi^*=(U_{div}/U)^2$", fontsize=6.5, color=C1)
     al = np.array(s3["branches"]["box aligned | L=100"]["primary"], float)
     ax[1].plot(u, al, color=C3, lw=1.1, ls="-.")
     ax[1].annotate("wind along the axis, with rope torque:\ntwist reduced (weathervane)", xy=(0.45, 1.6),
@@ -235,11 +239,74 @@ def fig5():
                Line2D([], [], color=INK2, ls=":", lw=0.8, label="mating tolerance (±1 deg)")]
     fig.legend(handles=handles, loc="lower center", ncol=5, fontsize=6.3, bbox_to_anchor=(0.5, -0.04))
     fig.tight_layout(rect=(0, 0.07, 1, 1), w_pad=1.0)
-    save(fig, "Fig5_equilibria")
+    save(fig, "Fig6_equilibria")
     plt.close(fig)
 
 
-# ------------------------------------------------------------------ Fig. 6
+
+# ------------------------------------------------------------------ Fig. 5
+def fig5c():
+    """Connection stiffness and aerodynamic slope: divergence and tolerance thresholds."""
+    from aero_models import U_div, max_slope, MeasuredBox
+    cb = R("s3b_connection")
+    s2 = R("s2_aero_bem")
+    CK = s2["CK"]["bem_box"]
+    cmax = max_slope(MeasuredBox())[0]
+    fig, ax = plt.subplots(1, 2, figsize=(cm.W2, 3.35))
+    a = ax[0]
+    r = np.logspace(np.log10(0.05), 2, 200)
+    fac = np.sqrt(r / (1 + r))
+    tw = [v["mating"]["r"] for v in cb["twin_hook"].values()]
+    a.axvspan(min(tw), max(tw), color=GRID, alpha=0.8, lw=0)
+    a.text(np.sqrt(min(tw) * max(tw)), 41.5, "twin-hook slings\n(mating)", fontsize=6.0, color=INK2,
+           ha="center", va="top")
+    for L, ls, nm in ((cm.L_mating, "-", "mating"), (cm.L_liftoff, "--", "lift-off")):
+        k = cm.suspension(L).k_psi
+        a.plot(r, U_div(k, CK) * fac, color=C1, ls=ls, lw=1.3, label=rf"$U_{{div}}$, potential flow, {nm}")
+        a.plot(r, U_div(k, cmax) * fac, color=C2, ls=ls, lw=1.3, label=rf"$U_{{div}}$, sharp-edged box, {nm}")
+    ut = cb["U_tol_vs_r"]
+    rr = np.array(ut["r"])
+    a.plot(rr, ut["mating|munk|TI=0.06"], color=C1, ls=":", lw=1.4, marker="o", ms=2.5,
+           label=r"$U_{tol}$ (expected max. 1°), potential flow")
+    a.plot(rr, ut["mating|box|TI=0.06"], color=C2, ls=":", lw=1.4, marker="s", ms=2.5,
+           label=r"$U_{tol}$ (expected max. 1°), box")
+    a.set_xscale("log")
+    a.set_xlim(0.05, 100); a.set_ylim(0, 42)
+    a.set_xlabel(r"connection-to-falls stiffness ratio $k_c/k_\psi$")
+    a.set_ylabel("wind speed at the payload (m/s)")
+    a.legend(fontsize=5.4, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
+    panel_label(a, "a")
+    b = ax[1]
+    mp = cb["map_mating"]
+    cp = np.array(mp["cprime"])
+    rm = list(mp["r"])
+    Ut = np.array(mp["U_tol"])
+    k = cm.suspension(cm.L_mating).k_psi
+    cpf = np.linspace(0.1, 1.0, 200)
+    for j, (rv, col) in enumerate(((np.inf, C1), (5.0, C3), (1.0, C4), (0.2, C5))):
+        f_ = 1.0 if np.isinf(rv) else np.sqrt(rv / (1 + rv))
+        lab = "rigid" if np.isinf(rv) else f"{rv:g}"
+        b.plot(cpf, np.sqrt(2 * k / (cm.rho_air * cm.A_side * cm.L_n * cpf)) * f_, color=col, lw=1.3,
+               label=rf"$U_{{div}}$, $k_c/k_\psi$ = {lab}")
+    for rv, col in ((100.0, C1), (1.0, C4)):
+        jj = rm.index(rv)
+        b.plot(cp, Ut[:, jj], color=col, ls=":", lw=1.4, marker="o", ms=2.3,
+               label=rf"$U_{{tol}}$, $k_c/k_\psi$ = {'rigid' if rv == 100.0 else f'{rv:g}'}")
+    b.axvspan(0.24, 0.34, color=C2, alpha=0.15, lw=0)
+    b.text(0.29, 54, "box", fontsize=6.0, color=C2, ha="center")
+    for x, t in ((0.259, "spheroid"), (CK, "potential flow, box")):
+        b.axvline(x, color=INK2, lw=0.6, ls="--")
+        b.text(x + 0.012, 50 if t == "spheroid" else 54, t, fontsize=5.8, color=INK2)
+    b.set_xlim(0.1, 1.0); b.set_ylim(0, 60)
+    b.set_xlabel(r"aerodynamic slope $c'$")
+    b.set_ylabel(r"wind speed at mating (m/s)")
+    b.legend(fontsize=5.4, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
+    panel_label(b, "b")
+    fig.tight_layout(w_pad=1.2)
+    save(fig, "Fig5_connection")
+    plt.close(fig)
+
+# ------------------------------------------------------------------ Fig. 8
 def fig7():
     v = R("s4_vessel")
     d5 = R("s5_dynamics")
@@ -298,7 +365,7 @@ def fig7():
     a.text(0.115, 30, "waves", fontsize=6.3, color=INK2, ha="center")
     panel_label(a, "d")
     fig.tight_layout(w_pad=0.8)
-    save(fig, "Fig7_vessel")
+    save(fig, "Fig8_vessel")
     plt.close(fig)
 
 
@@ -307,7 +374,8 @@ def fig6():
     d5 = R("s5_dynamics")
     resp = d5["response"]
     ext = d5["extremes"]
-    fig, ax = plt.subplots(1, 3, figsize=(cm.W2, 3.1))
+    fig, axs = plt.subplots(2, 2, figsize=(cm.W2, 5.6))
+    ax = [axs[0, 0], axs[0, 1], axs[1, 0], axs[1, 1]]
     for a, mname, lab, title in ((ax[0], "munk", "a", "potential flow (Munk)"),
                                  (ax[1], "box", "b", f"box, wind {abs(d5['box_theta0_deg']):.0f}° off axis")):
         for k_, zeta in enumerate(cm.zeta_values):
@@ -335,11 +403,11 @@ def fig6():
         a.set_title(title, fontsize=7.0, loc="right")
         panel_label(a, lab)
     ax[0].set_ylabel(r"yaw standard deviation $\sigma_\psi$ (deg)")
-    ax[0].legend(loc="upper center", fontsize=5.4, bbox_to_anchor=(0.5, -0.22))
+    ax[0].legend(loc="lower right", fontsize=5.4)
     hh = [Line2D([], [], marker="o", color=INK2, mfc="white", ls="none", label=rf"time domain, $L$ = {cm.L_mating:.0f} m"),
           Line2D([], [], marker="x", color=INK, ls="none", label=r"time domain, $L$ = 100 m"),
           Line2D([], [], marker="+", color=INK, ls="none", label=r"time domain, $L$ = 150 m")]
-    ax[1].legend(handles=hh, loc="upper center", fontsize=5.4, bbox_to_anchor=(0.5, -0.22))
+    ax[1].legend(handles=hh, loc="lower right", fontsize=5.4)
     # (c) physical wind at mating: standard deviation and expected 20-min maximum
     a = ax[2]
     for k_, (mname, nm) in enumerate((("munk", "Munk"), ("box", "box, 20°"))):
@@ -356,10 +424,30 @@ def fig6():
     a.set_xlim(0, 20); a.set_ylim(0.01, 60)
     a.set_xlabel(r"mean wind at hub height $U$ (m/s)")
     a.set_title(rf"mating ($L$ = {cm.L_mating:.0f} m), $\zeta_s$ = 0.01", fontsize=7.0, loc="right")
-    a.legend(loc="upper center", fontsize=5.4, ncol=2, bbox_to_anchor=(0.5, -0.22))
+    a.set_ylabel(r"$\sigma_\psi$; expected largest $|\psi|$ (deg)")
+    a.legend(loc="lower right", fontsize=5.2, ncol=1)
     panel_label(a, "c")
-    fig.tight_layout(w_pad=1.0)
-    save(fig, "Fig6_turbulent_response")
+    # (d) probability that the largest |psi| in 20 min exceeds the tolerance (time domain)
+    a = ax[3]
+    op = R("s5c_operability")["exceedance"]
+    for k_, (mname, nm) in enumerate((("munk", "potential flow"), ("box", "box, 20°"))):
+        rows = op[f"{mname}|TI=0.06"]["rows"]
+        U = [r_["U"] for r_ in rows]
+        for tol, ls, mk in (("0.5", "--", "v"), ("1.0", "-", "o"), ("2.0", ":", "^")):
+            P = np.array([r_[f"P|{tol}"][0] for r_ in rows])
+            E = np.array([r_[f"P|{tol}"][1] for r_ in rows])
+            a.errorbar(U, P, yerr=E, color=cm.SERIES[k_], ls=ls, marker=mk, ms=3.0, lw=1.1, capsize=1.5,
+                       mfc="white", label=rf"{nm}, $\psi_{{tol}}$ = {float(tol):g}°")
+    a.axhline(0.1, color=INK2, lw=0.6, ls=(0, (2, 2)))
+    a.text(2.2, 0.12, "10 %", fontsize=6.0, color=INK2, ha="left")
+    a.set_xlim(2, 14); a.set_ylim(-0.02, 1.02)
+    a.set_xlabel(r"mean wind at hub height $U$ (m/s)")
+    a.set_ylabel(r"$P\{\max|\psi| > \psi_{tol}$ in 20 min$\}$")
+    a.set_title("mating, TI = 0.06, time domain", fontsize=7.0, loc="right")
+    a.legend(loc="lower right", fontsize=5.2)
+    panel_label(a, "d")
+    fig.tight_layout(w_pad=1.0, h_pad=1.2)
+    save(fig, "Fig7_turbulent_response")
     plt.close(fig)
 
 
@@ -368,7 +456,7 @@ def fig8():
     s6 = R("s6_control")
     th = s6["threshold"]
     kp = np.array(th["kp"])
-    fig, ax = plt.subplots(1, 2, figsize=(cm.W2 * 0.78, 2.75))
+    fig, ax = plt.subplots(1, 3, figsize=(cm.W2, 3.2))
     a = ax[0]
     for k_, L in enumerate((int(cm.L_mating), 100)):
         a.plot(kp[1:], np.array(th[f"L={L}|closed_form"])[1:], color=cm.SERIES[k_], lw=1.4,
@@ -401,10 +489,32 @@ def fig8():
     b.set_xlim(6, 22); b.set_ylim(0.005, 40)
     b.set_xlabel(r"mean wind $U$ (m/s)")
     b.set_ylabel(r"$\sigma_\psi$ (deg)")
-    b.legend(fontsize=5.8, loc="upper center", ncol=2, bbox_to_anchor=(0.5, -0.24))
+    b.legend(fontsize=5.4, loc="upper center", ncol=2, bbox_to_anchor=(0.5, -0.27))
     panel_label(b, "b")
+    # (c) critical actuator lag and delay margin versus the gains (mating, 12 m/s)
+    c = ax[2]
+    mg = R("s6b_tuggers")["margins"]
+    kds = [1e6, 2e6, 3e6, 6e6, 12e6]
+    for k_, kp_ in enumerate((5e5, 1e6, 2e6, 4e6)):
+        tc = [mg[f"mating|U=12.0|kp={kp_:g}|kd={kd:g}"]["tau_crit"] for kd in kds]
+        dm = [mg[f"mating|U=12.0|kp={kp_:g}|kd={kd:g}"]["delay_margin"] for kd in kds]
+        tc = [np.nan if not np.isfinite(x) else x for x in tc]
+        c.plot(kds, tc, color=cm.SERIES[k_], lw=1.2, marker="o", ms=2.8, label=rf"$k_p$ = {kp_/1e6:g}$\times$10$^6$")
+        c.plot(kds, dm, color=cm.SERIES[k_], lw=1.0, ls="--", marker="s", ms=2.4, mfc="white")
+    c.plot([6e6], [mg["mating|U=12.0|kp=2e+06|kd=6e+06"]["tau_crit"]], marker="*", ms=8, color=INK, ls="none")
+    c.plot([], [], color=INK2, lw=1.2, label="critical first-order lag")
+    c.plot([], [], color=INK2, lw=1.0, ls="--", label="delay margin")
+    c.plot([], [], marker="*", ms=7, color=INK, ls="none", label="baseline gains")
+    c.set_xscale("log")
+    c.set_yscale("log")
+    c.set_xlim(8e5, 1.5e7); c.set_ylim(0.2, 30)
+    c.set_xlabel(r"derivative gain $k_d$ (N m s/rad)")
+    c.set_ylabel("lag or delay (s)")
+    c.legend(fontsize=5.0, loc="upper center", ncol=2, bbox_to_anchor=(0.5, -0.27))
+    panel_label(c, "c")
     fig.tight_layout(w_pad=1.2)
-    save(fig, "Fig8_control")
+    fig.subplots_adjust(bottom=0.36)
+    save(fig, "Fig9_control")
     plt.close(fig)
 
 
@@ -450,13 +560,13 @@ def fig9():
     c.set_ylim(0.48, 0.52)
     panel_label(c, "c")
     fig.tight_layout(w_pad=2.0)
-    save(fig, "Fig9_verification")
+    save(fig, "Fig10_verification")
     plt.close(fig)
 
 
 if __name__ == "__main__":
     import sys
-    which = sys.argv[1:] or ["2", "3", "4", "5", "6", "7", "8", "9"]
+    which = sys.argv[1:] or ["2", "3", "4", "5", "5c", "6", "7", "8", "9"]
     for w_ in which:
         globals()[f"fig{w_}"]()
         print("fig", w_, "done")

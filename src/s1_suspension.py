@@ -95,6 +95,43 @@ class BlockEquilibrium:
         return sol.x, Mz, float(np.max(np.abs(res)))
 
 
+class BlockEquilibriumRopes(BlockEquilibrium):
+    """As BlockEquilibrium, but the falls belong to several inextensible ropes
+    (rope[i] = index of the rope of fall i), each with its own tension and length.
+    Unknowns q = [x, y, z, phi, theta, T_1 .. T_nr]."""
+
+    def __init__(self, a, b, W, h0, z_cg, rope):
+        super().__init__(a, b, W, h0, z_cg, 1.0)
+        self.rope = np.asarray(rope)
+        self.nr = int(self.rope.max()) + 1
+        ell0 = np.linalg.norm(self.a3 - (self.b3 + [0, 0, h0]), axis=1)
+        self.ell_r = np.array([ell0[self.rope == j].sum() for j in range(self.nr)])
+
+    def residual(self, q, psi):
+        x, y, z, phi, th = q[:5]
+        Tr = q[5:]
+        R = Rxyz(phi, th, psi)
+        p0 = np.array([x, y, z])
+        bw = (R @ self.b3.T).T + p0
+        vec = self.a3 - bw
+        ell = np.linalg.norm(vec, axis=1)
+        T = Tr[self.rope]
+        F = T[:, None] * vec / ell[:, None]
+        rcg = R @ np.array([0.0, 0.0, self.z_cg])
+        Fsum = F.sum(axis=0) + np.array([0.0, 0.0, self.W])
+        Msum = np.sum(np.cross(bw - p0, F), axis=0) + np.cross(rcg, [0.0, 0.0, self.W])
+        con = [(ell[self.rope == j].sum() - self.ell_r[j]) / self.ell_r[j] * 1e3 for j in range(self.nr)]
+        return np.r_[Fsum / self.W, Msum[:2] / self.W, con], Msum[2]
+
+    def solve(self, psi, q0=None):
+        if q0 is None:
+            q0 = np.r_[0.0, 0.0, self.h0, 0.0, 0.0, np.full(self.nr, self.W / len(self.a3))]
+        f = lambda q: self.residual(q, psi)[0]
+        sol = least_squares(f, q0, xtol=1e-15, ftol=1e-15, gtol=1e-15, method="lm")
+        res, Mz = self.residual(sol.x, psi)
+        return sol.x, Mz, float(np.max(np.abs(res)))
+
+
 def run():
     out = {}
     W_load = (cm.m_p + cm.m_hb) * cm.g
@@ -207,6 +244,27 @@ def run():
     out["reeving_bias"] = dict(single_rope_deg=bias(a1), mirrored_two_ropes_deg=bias(a2),
                                closed_form_deg=float(np.degrees(np.arcsin(
                                    cm.D_sheave * cm.p_sheave / 4 / cm.r_eq2()))))
+    # three-dimensional check of both reevings (fall ends a_i != b_i): one continuous rope,
+    # and two ropes over the two halves of the sheaves (mirror-symmetric leans)
+    from scipy.optimize import brentq as _brentq
+    r3 = {}
+    for L in (cm.L_mating, cm.L_ref):
+        one = BlockEquilibriumRopes(a1, b, W_load, L, z_cg, np.zeros(n, int))
+        two = BlockEquilibriumRopes(a2, b, W_load, L, z_cg, (b[:, 1] > 0).astype(int))
+        M0_two = two.solve(0.0)[1]
+        dpsi = np.radians(0.5)
+        k_two = -(two.solve(dpsi)[1] - two.solve(-dpsi)[1]) / (2 * np.sin(dpsi))
+        twist_one = _brentq(lambda p: one.solve(p)[1], np.radians(1.0), np.radians(10.0), xtol=1e-12)
+        # the same two ropes joined by an equaliser: one common length constraint
+        eqz = BlockEquilibriumRopes(a2, b, W_load, L, z_cg, np.zeros(n, int))
+        k_eqz = -(eqz.solve(dpsi)[1] - eqz.solve(-dpsi)[1]) / (2 * np.sin(dpsi))
+        r3[str(int(L))] = dict(
+            single_rope_twist_deg=float(np.degrees(twist_one)),
+            two_ropes_bias_moment_over_k=float(M0_two / (W_load * cm.r_eq2(a2, b) / L)),
+            two_ropes_k_num=float(k_two), two_ropes_k_closed_form=float(W_load * cm.r_eq2(a2, b) / L),
+            two_ropes_equalised_k_num=float(k_eqz),
+            two_ropes_tensions=two.solve(0.0)[0][5:].tolist())
+    out["reeving_3d"] = r3
     with open(f"{cm.RES}/s1_suspension.json", "w") as fh:
         json.dump(out, fh, indent=1)
     return out
@@ -222,3 +280,4 @@ if __name__ == "__main__":
     print("Bridon:", o["bridon"])
     print("elastic:", json.dumps(o["elastic_bound"], indent=0))
     print("r_eq:", o["r_eq"])
+    print("reeving:", o["reeving_bias"], json.dumps(o["reeving_3d"], indent=0))

@@ -1519,5 +1519,29 @@
   "single_rope_deg": 5.305248285266427,
   "mirrored_two_ropes_deg": 1.633776643874928e-16,
   "closed_form_deg": 5.305248285266429
+ },
+ "reeving_3d": {
+  "13": {
+   "single_rope_twist_deg": 5.282652896740694,
+   "two_ropes_bias_moment_over_k": -3.3746847610959303e-18,
+   "two_ropes_k_num": 1217111.1970768806,
+   "two_ropes_k_closed_form": 1078020.3380864167,
+   "two_ropes_equalised_k_num": 1077932.213688164,
+   "two_ropes_tensions": [
+    719913.3031416803,
+    719913.3031416804
+   ]
+  },
+  "100": {
+   "single_rope_twist_deg": 5.282650724637085,
+   "two_ropes_bias_moment_over_k": 0.0,
+   "two_ropes_k_num": 142492.37729704552,
+   "two_ropes_k_closed_form": 140142.64395123417,
+   "two_ropes_equalised_k_num": 140142.45043200676,
+   "two_ropes_tensions": [
+    719880.5878393835,
+    719880.5878393835
+   ]
+  }
  }
 }

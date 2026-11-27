@@ -31,6 +31,19 @@ def kaimal(f, sigma, Lk, U):
     return sigma ** 2 * 4 * Lk / U / (1 + 6 * x) ** (5 / 3)
 
 
+def froya(f, sigma, U, z):
+    """Froya wind spectrum (DNV-RP-C205) for the mean wind U at height z, used as a
+    spectral shape and scaled to the variance sigma^2 [ (m/s)^2 / Hz ]."""
+    U0 = U * (10.0 / z) ** cm.alpha_shear          # mean wind at 10 m (power law)
+    n = 0.468
+
+    def raw(ff):
+        ft = 172.0 * ff * (z / 10.0) ** (2 / 3) * (U0 / 10.0) ** -0.75
+        return 320.0 * (U0 / 10.0) ** 2 * (z / 10.0) ** 0.45 / (1.0 + ft ** n) ** (5.0 / (3.0 * n))
+    fi = np.logspace(-7, 2, 20000)
+    return sigma ** 2 * raw(f) / np.trapezoid(raw(fi), fi)
+
+
 def turbulence(seed, T, dt, U, TI, z, T_syn=None):
     """Point time series u(t), v(t) by spectral synthesis (random phases, FFT).
     The series is synthesised over T_syn >= T (frequency spacing 1/T_syn) and its
@@ -61,7 +74,8 @@ _V = {}
 _C = {}
 
 
-def vessel_inputs(seed, T, dt, heading_deg=150.0, Hs=cm.Hs, Tp=cm.Tp, coupled_L=None, zeta_p=None):
+def vessel_inputs(seed, T, dt, heading_deg=150.0, Hs=cm.Hs, Tp=cm.Tp, coupled_L=None, zeta_p=None,
+                  variant=None):
     """Boom-tip horizontal motion and velocity, vertical acceleration and vessel
     yaw [rad] from the BEM RAOs and a JONSWAP sea (random phases).
     coupled_L: fall length of the two-way coupled vessel-pendulum solution, evaluated
@@ -88,9 +102,9 @@ def vessel_inputs(seed, T, dt, heading_deg=150.0, Hs=cm.Hs, Tp=cm.Tp, coupled_L=
         tip = np.stack([ip(tip_r[:, k]) for k in range(3)], axis=1)
     else:
         from s4_vessel import coupled_on_grid
-        key = (round(coupled_L, 3), zeta_p, n, dt, j)
+        key = (round(coupled_L, 3), zeta_p, n, dt, j, json.dumps(variant, sort_keys=True))
         if key not in _C:
-            R, Tq = coupled_on_grid(w, coupled_L, zeta_p)
+            R, Tq = coupled_on_grid(w, coupled_L, zeta_p, variant)
             _C.clear()
             _C[key] = (np.conj(R[:, j, :]), np.conj(Tq[:, j, :]))
         rao, tip = _C[key]
@@ -129,7 +143,8 @@ def _aero_c(beta, P):
     return c
 
 
-NP = 23 + NF   # length of the parameter vector
+TUG = 23 + NF  # first index of the two-line tugger parameters
+NP = TUG + 6   # length of the parameter vector
 
 
 @njit(cache=True)
@@ -148,7 +163,33 @@ def _rhs(s, U, q, P):
     Ma = P[8] * sp2 * _aero_c(beta, P)
     fac = 1.0 + azt / 9.80665
     Mt = 0.0
-    if P[19] > 0.5:
+    Fx = 0.0
+    Fy = 0.0
+    if P[19] > 1.5:
+        # two tugger lines attached at +-r_t on the payload axis, pulling towards anchors
+        # fixed to the boom at (x_t +- r_t, y_t - l_t); the yaw couple is set by the tension
+        # difference and a transverse sway damping by the tension sum; one-sided tension
+        Mc = -P[15] * (psi - P[18]) - P[16] * dpsi
+        T0, rt, lt, Tmin, Tmax, csw = P[TUG], P[TUG + 1], P[TUG + 2], P[TUG + 3], P[TUG + 4], P[TUG + 5]
+        Tc = T0 + 0.5 * csw * (dy - dyt)
+        cp_, sp_ = np.cos(psi), np.sin(psi)
+        for sg in (1.0, -1.0):
+            T = Tc + sg * (-Mc) / (2.0 * rt)
+            if T < Tmin:
+                T = Tmin
+            elif T > Tmax:
+                T = Tmax
+            ax = sg * rt * cp_
+            ay = sg * rt * sp_
+            lx = xt + sg * rt - (x + ax)
+            ly = yt - lt - (y + ay)
+            ln = np.sqrt(lx * lx + ly * ly)
+            fx = T * lx / ln
+            fy = T * ly / ln
+            Mt += ax * fy - ay * fx
+            Fx += fx
+            Fy += fy
+    elif P[19] > 0.5:
         Mt = -P[15] * (psi - P[18]) - P[16] * dpsi
         if Mt > P[17]:
             Mt = P[17]
@@ -160,8 +201,8 @@ def _rhs(s, U, q, P):
              + Ma + P[4] * fac + Mt) / I
     sp = np.sqrt(sp2)
     kx = P[6] * fac / P[7]
-    ddx = (-kx * (x - xt) - P[20] * (dx - dxt) + P[9] * sp * ux) / P[5]
-    ddy = (-kx * (y - yt) - P[20] * (dy - dyt) + P[21] * sp * uy) / P[5]
+    ddx = (-kx * (x - xt) - P[20] * (dx - dxt) + P[9] * sp * ux + Fx) / P[5]
+    ddy = (-kx * (y - yt) - P[20] * (dy - dyt) + P[21] * sp * uy + Fy) / P[5]
     out = np.empty(6)
     out[0] = dpsi; out[1] = ddpsi; out[2] = dx; out[3] = ddx; out[4] = dy; out[5] = ddy
     return out
@@ -201,8 +242,14 @@ def integrate(s0, dt, U, u, v, xt, yt, azt, psv, dpsv, P, dth=None, dxt=None, dy
 ZETA_P = 0.02   # damping ratio of the pendulum mode (hoist friction, rigging; ASSUMED)
 
 
+TUGGER = dict(T0=50e3, r_t=10.0, l_t=30.0, T_min=5e3, T_max=100e3, c_sway=0.0)
+
+
 def params_vector(L, model, zeta_s, U, control=False, kp=cm.k_p_nom, kd=cm.k_d_nom,
-                  rope=True, aero_damping=True, aero_damping_munk=False, zeta_p=ZETA_P):
+                  rope=True, aero_damping=True, aero_damping_munk=False, zeta_p=ZETA_P,
+                  tugger=None):
+    """control: False, True (ideal saturated couple) or 'lines' (two tugger lines with
+    the geometry and limits of `tugger`, default TUGGER)."""
     s = cm.suspension(L)
     c_s = 2 * zeta_s * np.sqrt(s.k_psi * cm.I_zz)
     kind = 0 if isinstance(model, Munk) else 1
@@ -216,11 +263,14 @@ def params_vector(L, model, zeta_s, U, control=False, kp=cm.k_p_nom, kd=cm.k_d_n
     m = cm.m_p + cm.m_hb
     lp = L + Z_BLOCK_CG
     c_p = 2 * zeta_p * m * np.sqrt(cm.g / lp)
+    tg = dict(TUGGER, **(tugger or {}))
+    mode = 2.0 if control == "lines" else (1.0 if control else 0.0)
     return np.r_[s.k_psi, cm.I_zz, c_s, c_a, s.M_r if rope else 0.0, m, s.W_load,
                  lp, 0.5 * cm.rho_air * cm.A_side * cm.L_n,
                  0.5 * cm.rho_air * CDA, kind, 0.0, 0.0, cyx, ref_slope(model),
-                 kp, kd, cm.M_t_max, 0.0, 1.0 if control else 0.0,
-                 c_p, 0.5 * cm.rho_air * cm.A_side * CYB, getattr(model, "theta0", 0.0), af]
+                 kp, kd, cm.M_t_max, 0.0, mode,
+                 c_p, 0.5 * cm.rho_air * cm.A_side * CYB, getattr(model, "theta0", 0.0), af,
+                 tg["T0"], tg["r_t"], tg["l_t"], tg["T_min"], tg["T_max"], tg["c_sway"]]
 
 
 def static_equilibrium(P, U):
@@ -245,10 +295,13 @@ def static_equilibrium(P, U):
 
 # ------------------------------------------------------------ spectral model
 def spectral(L, model, zeta_s, U, TI, z, control=False, kp=cm.k_p_nom, kd=cm.k_d_nom,
-             vessel=None, rope=True, f=None, aero_damping_munk=False):
-    """Linearised yaw response spectrum and its decomposition."""
-    P = params_vector(L, model, zeta_s, U, control, kp, kd, rope, aero_damping_munk=aero_damping_munk)
-    k, I, c_s, c_a = P[0], P[1], P[2], P[3]
+             vessel=None, rope=True, f=None, aero_damping_munk=False, spectrum="kaimal",
+             ca_factor=1.0):
+    """Linearised yaw response spectrum and its decomposition.
+    spectrum: 'kaimal' (IEC) or 'froya' (DNV-RP-C205 shape, same variances);
+    ca_factor scales the aerodynamic yaw damping (sensitivity)."""
+    P = params_vector(L, model, zeta_s, U, bool(control), kp, kd, rope, aero_damping_munk=aero_damping_munk)
+    k, I, c_s, c_a = P[0], P[1], P[2], P[3] * ca_factor
     psib = static_equilibrium(P, U)
     qasl = P[8] * U ** 2
     th0 = getattr(model, "theta0", 0.0)
@@ -262,8 +315,12 @@ def spectral(L, model, zeta_s, U, TI, z, control=False, kp=cm.k_p_nom, kd=cm.k_d
     w = 2 * np.pi * f
     H = 1.0 / (keff - I * w ** 2 + 1j * ctot * w)
     lam = cm.Lambda1(z)
-    Su = kaimal(f, TI * U, 8.1 * lam, U)
-    Sv = kaimal(f, cm.r_sigma_v * TI * U, 2.7 * lam, U)
+    if spectrum == "froya":
+        Su = froya(f, TI * U, U, z)
+        Sv = froya(f, cm.r_sigma_v * TI * U, U, z)
+    else:
+        Su = kaimal(f, TI * U, 8.1 * lam, U)
+        Sv = kaimal(f, cm.r_sigma_v * TI * U, 2.7 * lam, U)
     # forcing: lateral gust rotates the flow by v/U -> (-Ka + i w c_a) v/U (the second
     # term is the gust-gradient moment of strip theory); along-wind gust changes q
     SF = ((Ka ** 2 + (w * c_a) ** 2) / U ** 2) * Sv + (2 * qasl * cval / U) ** 2 * Su
@@ -291,17 +348,20 @@ def spectral(L, model, zeta_s, U, TI, z, control=False, kp=cm.k_p_nom, kd=cm.k_d
 
 def simulate(L, model, zeta_s, U, TI, z, seeds, record=None, burn=600.0, dt=0.05,
              vessel=False, heading=150.0, control=False, kp=cm.k_p_nom, kd=cm.k_d_nom,
-             rope=True, Hs=cm.Hs, Tp=cm.Tp, zeta_p=ZETA_P, only=None, two_way=True):
+             rope=True, Hs=cm.Hs, Tp=cm.Tp, zeta_p=ZETA_P, only=None, two_way=True,
+             windows=None, tugger=None, vessel_variant=None):
     """Time-domain runs (one record of length `record` per seed after the burn-in).
     only: restrict the vessel input to 'yaw', 'horiz' or 'heave'.
     two_way: boom-tip motion from the coupled vessel-pendulum solution.
     The burn-in is extended to 3/(zeta_tot w_0), so that the resonant variance of the
     yaw mode, which builds up as 1 - exp(-2 zeta w_0 t), is within 0.3 % of its
     stationary value.  The record lasts at least one hour and at least ten correlation
-    times 1/(zeta_tot w_0) of the response envelope (unless `record` is given)."""
-    P = params_vector(L, model, zeta_s, U, control, kp, kd, rope, zeta_p=zeta_p)
+    times 1/(zeta_tot w_0) of the response envelope (unless `record` is given).
+    windows: length [s] of the windows whose largest |psi| is returned (win_max, and
+    win_max_dyn about the record mean).  control='lines': two physical tugger lines."""
+    P = params_vector(L, model, zeta_s, U, control, kp, kd, rope, zeta_p=zeta_p, tugger=tugger)
     psib = static_equilibrium(P, U)
-    spx = spectral(L, model, zeta_s, U, TI, z, control, kp, kd, rope=rope)
+    spx = spectral(L, model, zeta_s, U, TI, z, bool(control), kp, kd, rope=rope)
     tau = 1.0 / (spx["zeta_tot"] * 2 * np.pi * max(spx["f_n"], 1e-4))   # envelope correlation time
     burn = max(burn, min(3.0 * tau, 6.0e4))
     if record is None:
@@ -318,7 +378,8 @@ def simulate(L, model, zeta_s, U, TI, z, seeds, record=None, burn=600.0, dt=0.05
         dth = np.gradient(np.arctan2(v, U + u), dt)
         if vessel:
             xt, yt, azt, psv, dpsv, dxt, dyt = vessel_inputs(sd, T, dt, heading, Hs, Tp,
-                                                             L if two_way else None, zeta_p)
+                                                             L if two_way else None, zeta_p,
+                                                             vessel_variant)
             if only == "yaw":
                 xt = yt = azt = dxt = dyt = Z
             elif only == "horiz":
@@ -342,7 +403,43 @@ def simulate(L, model, zeta_s, U, TI, z, seeds, record=None, burn=600.0, dt=0.05
                                                                    (X[i0:, 4] - yt[i0:]).std())
                                                           / (L + Z_BLOCK_CG))),
                           burn=burn, record=record))
+        if windows:
+            nw = int(len(psi) * dt // windows)
+            m_w = int(round(windows / dt))
+            pa = np.abs(psi[:nw * m_w]).reshape(nw, m_w).max(1)
+            pd = np.abs(psi[:nw * m_w] - psi.mean()).reshape(nw, m_w).max(1)
+            stats[-1]["win_max"] = np.degrees(pa).tolist()
+            stats[-1]["win_max_dyn"] = np.degrees(pd).tolist()
+        if P[19] > 1.5:
+            stats[-1].update(line_diagnostics(X[i0:], xt[i0:], yt[i0:], dyt[i0:], P, dt))
     return stats
+
+
+def line_diagnostics(X, xt, yt, dyt, P, dt):
+    """Tensions, tension rates and reeling speeds of the two tugger lines (control='lines')."""
+    psi, dpsi, x, y, dy = X[:, 0], X[:, 1], X[:, 2], X[:, 4], X[:, 5]
+    Mc = -P[15] * (psi - P[18]) - P[16] * dpsi
+    T0, rt, lt, Tmin, Tmax, csw = P[TUG:TUG + 6]
+    Tc = T0 + 0.5 * csw * (dy - dyt)
+    out = {}
+    Ts, Ls = [], []
+    for sg in (1.0, -1.0):
+        T = np.clip(Tc - sg * Mc / (2 * rt), Tmin, Tmax)
+        lx = xt + sg * rt - (x + sg * rt * np.cos(psi))
+        ly = yt - lt - (y + sg * rt * np.sin(psi))
+        Ts.append(T); Ls.append(np.hypot(lx, ly))
+    Ts, Ls = np.array(Ts), np.array(Ls)
+    dT = np.gradient(Ts, dt, axis=1)
+    dl = np.gradient(Ls, dt, axis=1)
+    out["T_min_kN"] = float(Ts.min() / 1e3)
+    out["T_max_kN"] = float(Ts.max() / 1e3)
+    out["dT_max_kN_s"] = float(np.abs(dT).max() / 1e3)
+    out["reel_std"] = float(dl.std(axis=1).max())
+    out["reel_max"] = float(np.abs(dl).max())
+    out["frac_saturated"] = float(np.mean((Ts <= Tmin + 1.0) | (Ts >= Tmax - 1.0)))
+    out["sway_rel_y_std"] = float((y - yt).std())
+    out["sway_rel_y_mean"] = float((y - yt).mean())
+    return out
 
 
 def paired(base, other, key="std"):

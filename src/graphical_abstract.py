@@ -19,14 +19,20 @@ band = np.array([al[k] for k in fits])
 a.fill_between(L, band.min(0), band.max(0), color=C2, alpha=0.22, lw=0)
 a.plot(L, al["box"], color=C2, lw=1.4, ls="--", label="sharp-edged box, wind 18° off axis (data)")
 a.plot(L, al["Munk (BEM box)"], color=C1, lw=1.6, label="potential flow, wind along axis (BEM)")
+# twin-hook sling connection (a = 0.5 m, b = 2 m, h_s = 8 m): k_c independent of L
+cb = json.load(open(f"{cm.RES}/s3b_connection.json"))
+kc = cb["twin_hook"]["a=0.5|b=2.0|h=8.0"]["k_c"]
+kL = np.array([cm.suspension(x).k_psi for x in L])
+a.plot(L, np.array(al["Munk (BEM box)"]) * np.sqrt(kc / (kL + kc)), color=C3, lw=1.3, ls="-.",
+       label="potential flow, twin-hook slings")
 Uz = 12.0 * (z / cm.z_hub) ** cm.alpha_shear
 a.plot(L, Uz, color=INK, lw=0.9, label=r"wind at payload, $U_{hub}$ = 12 m/s")
 a.set_xlim(cm.L_mating, 150); a.set_ylim(0, 45)
 a.set_xlabel(r"fall length $L$ (m):  mating $\rightarrow$ lift-off")
 a.set_ylabel(r"$U_{div}$ (m/s)")
-a.legend(fontsize=6.3, loc="upper right")
-a.text(0.98, 0.04, "bare suspension, no tugger lines", transform=a.transAxes, ha="right", va="bottom",
-       fontsize=6.3, color=INK2)
+a.legend(fontsize=5.8, loc="upper right")
+a.text(0.98, 0.04, "bare suspension, no tugger lines;\nopen-loop 1° tolerance at mating: 4.2–5.4 m/s", transform=a.transAxes,
+       ha="right", va="bottom", fontsize=6.0, color=INK2)
 a.set_title(r"$U_{div}=\sqrt{2Wr_{eq}^2/(\rho A_s L_n c'_{\max} L)}$", fontsize=8)
 save(fig, "GraphicalAbstract")
 print("ok")

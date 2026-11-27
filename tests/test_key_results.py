@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.join(ROOT, "src"))
 
 import common as cm                                   # noqa: E402
 from aero_models import Munk, BluffBox, MeasuredBox, U_div, max_slope   # noqa: E402
-from s1_suspension import BlockEquilibrium, moment_closed_form   # noqa: E402
+from s1_suspension import BlockEquilibrium, BlockEquilibriumRopes, moment_closed_form   # noqa: E402
 from s3_statics import equilibria                     # noqa: E402
 from s6_control import eig_threshold                  # noqa: E402
 
@@ -60,6 +60,22 @@ def test_reeving_bias():
     assert abs(np.mean(b[:, 0] * a2[:, 1] - b[:, 1] * a2[:, 0])) < 1e-12
 
 
+def test_two_rope_reeving_3d():
+    """Mirrored two-rope reeving: no bias; with an equaliser (one length constraint) the
+    stiffness is Eq. (4); with two independently held ropes it is higher (block tilts)."""
+    b = cm.fall_positions()
+    a2 = b.copy()
+    a2[:, 1] += np.where((b[:, 0] > 0) == (b[:, 1] > 0), 1.0, -1.0) * cm.p_sheave / 2
+    W = (cm.m_p + cm.m_hb) * cm.g
+    k_cf = W * cm.r_eq2(a2, b) / cm.L_mating
+    d = np.radians(0.1)
+    one = BlockEquilibriumRopes(a2, b, W, cm.L_mating, cm.Z_CG_BELOW_BLOCK, np.zeros(len(b), int))
+    two = BlockEquilibriumRopes(a2, b, W, cm.L_mating, cm.Z_CG_BELOW_BLOCK, (b[:, 1] > 0).astype(int))
+    assert abs(two.solve(0.0)[1]) < 1e-6 * k_cf
+    assert -one.solve(d)[1] / np.sin(d) == pytest.approx(k_cf, rel=1e-3)
+    assert -two.solve(d)[1] / np.sin(d) / k_cf == pytest.approx(1.129, abs=0.005)
+
+
 # ---------------------------------------------------------------- Section 4
 def test_lamb_coefficients_and_bem():
     from s2_aero_bem import lamb_prolate, mesh_superellipsoid, added_masses
@@ -97,6 +113,18 @@ def test_critical_speeds_sharp_edged_box():
     cmax = max_slope(MeasuredBox())[0]
     assert U_div(cm.suspension(13.0).k_psi, cmax) == pytest.approx(36.3, abs=0.1)
     assert U_div(cm.suspension(150.0).k_psi, cmax) == pytest.approx(10.8, abs=0.1)
+
+
+def test_connection_series_stiffness():
+    """Eq. (17): eigenvalue threshold of the two-mass model equals the series formula."""
+    from s3b_connection import threshold_two_mass, factor, k_twin_hook
+    m = Munk(0.496)
+    Ud = U_div(cm.suspension(cm.L_mating).k_psi, 0.496)
+    for r in (0.1, 1.0, 5.0):
+        assert threshold_two_mass(cm.L_mating, m, r) == pytest.approx(Ud * factor(r), rel=1e-6)
+    assert Ud * factor(0.2) == pytest.approx(12.2, abs=0.05)
+    kc = k_twin_hook(0.5, 2.0, 8.0, (cm.m_p + 0.5 * cm.m_hb) * cm.g)
+    assert kc / cm.suspension(cm.L_mating).k_psi == pytest.approx(0.97, abs=0.01)
 
 
 def test_munk_post_critical_branch():
@@ -146,6 +174,26 @@ def test_closed_loop_threshold_independent_of_damping(kp):
         assert u_eig == pytest.approx(closed_form, abs=0.1)
 
 
+def test_two_tugger_lines_produce_commanded_couple():
+    """At psi = 0 the tension difference of the two lines gives exactly the PD couple."""
+    import s5_dynamics as d
+    m = Munk(0.496)
+    P = d.params_vector(cm.L_mating, m, 0.0, 0.0, control="lines", rope=False)
+    s0 = np.array([0.0, 0.01, 0.0, 0.0, 0.0, 0.0])
+    out = d._rhs(s0, 0.0, np.zeros(10), P)
+    assert out[1] * cm.I_zz == pytest.approx(-cm.k_d_nom * 0.01, rel=1e-9)
+
+
+def test_lag_and_delay_margins_baseline_gains():
+    from s6b_tuggers import tau_crit, delay_margin
+    from aero_models import qASL
+    s = cm.suspension(cm.L_mating)
+    c = 2 * 0.01 * np.sqrt(s.k_psi * cm.I_zz)
+    Ka = qASL(12.0) * 0.496
+    assert tau_crit(s.k_psi, cm.I_zz, c, 2e6, 6e6, Ka) == pytest.approx(3.11, abs=0.02)
+    assert delay_margin(s.k_psi, cm.I_zz, c, 2e6, 6e6, Ka) == pytest.approx(2.02, abs=0.02)
+
+
 # ------------------------------------------- stored results vs the paper
 def _load(name):
     path = os.path.join(RES, name)
@@ -164,3 +212,12 @@ def test_stored_results_match_paper():
     s5 = _load("s5_dynamics.json")
     v = s5["verification"]
     assert v["td_sigma_deg"][0] == pytest.approx(v["spectral_sigma_deg"], abs=2 * v["td_sigma_deg"][1])
+    ops = _load("s5c_operability.json")["exceedance"]
+    assert ops["munk|TI=0.06"]["U_tol"]["P|1.0|10%"] == pytest.approx(4.2, abs=0.05)
+    assert ops["box|TI=0.06"]["U_tol"]["P|1.0|10%"] == pytest.approx(5.4, abs=0.05)
+    vs = _load("s4b_vessel_sensitivity.json")
+    assert vs["baseline"]["T_coupled"][0] == pytest.approx(18.55, abs=0.05)
+    assert vs["baseline"]["Tp=base|hd=90.0|munk"]["diff_pct"][0] == pytest.approx(52, abs=1)
+    tl = _load("s6b_tuggers.json")["two_lines"]["mating|munk|U=12.0"]
+    assert tl["lines"]["std"][0] == pytest.approx(tl["ideal"]["std"][0], rel=0.005)
+    assert tl["lines"]["T_min_kN"] > 5.0
