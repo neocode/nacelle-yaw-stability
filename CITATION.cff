@@ -21,13 +21,13 @@ identifiers:
     description: "Version 2.2.0"
 repository-code: "https://github.com/neocode/nacelle-yaw-stability"
 authors:
-  - given-names: "Serhii"
-    family-names: "Podliesnyi"
-    affiliation: "Department of Fundamentals of Machine Design, Donbas State Engineering Academy, Kramatorsk, Ukraine"
   - given-names: "Oleksii"
     family-names: "Sheremet"
     affiliation: "Department of Electromechanical Systems of Automation and Electric Drive, Donbas State Engineering Academy, Kramatorsk, Ukraine"
     email: "Oleksii.Sheremet@ddma.edu.ua"
+  - given-names: "Serhii"
+    family-names: "Podliesnyi"
+    affiliation: "Department of Fundamentals of Machine Design, Donbas State Engineering Academy, Kramatorsk, Ukraine"
 keywords:
   - offshore installation
   - offshore crane
@@ -40,9 +40,9 @@ preferred-citation:
   type: article
   title: "Yaw stability of a nacelle suspended from a multi-fall offshore crane hoist: gravitational torsional stiffness and wind-induced static divergence"
   authors:
-    - given-names: "Serhii"
-      family-names: "Podliesnyi"
     - given-names: "Oleksii"
       family-names: "Sheremet"
+    - given-names: "Serhii"
+      family-names: "Podliesnyi"
   year: 2026
   status: submitted

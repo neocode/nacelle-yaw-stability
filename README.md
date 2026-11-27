@@ -4,7 +4,7 @@
 
 Code, data and figures for the paper
 
-> S. Podliesnyi, O. Sheremet. *Yaw stability of a nacelle suspended from a multi-fall offshore crane hoist: gravitational torsional stiffness and wind-induced static divergence.*
+> O. Sheremet, S. Podliesnyi. *Yaw stability of a nacelle suspended from a multi-fall offshore crane hoist: gravitational torsional stiffness and wind-induced static divergence.*
 
 Every number, table and figure of the paper is produced by the scripts in `src/`. The computed results are stored in `results/`, and the figures in `figures/` (PNG and LZW-compressed TIFF, 600 dpi).
 
