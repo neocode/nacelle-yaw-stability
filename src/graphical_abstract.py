@@ -24,7 +24,7 @@ cb = json.load(open(f"{cm.RES}/s3b_connection.json"))
 kc = cb["twin_hook"]["a=0.5|b=2.0|h=8.0"]["k_c"]
 kL = np.array([cm.suspension(x).k_psi for x in L])
 a.plot(L, np.array(al["Munk (BEM box)"]) * np.sqrt(kc / (kL + kc)), color=C3, lw=1.3, ls="-.",
-       label="potential flow, twin-hook slings")
+       label=r"potential flow, twin-hook slings ($k_c/k_\psi$ = 1 at mating)")
 Uz = 12.0 * (z / cm.z_hub) ** cm.alpha_shear
 a.plot(L, Uz, color=INK, lw=0.9, label=r"wind at payload, $U_{hub}$ = 12 m/s")
 a.set_xlim(cm.L_mating, 150); a.set_ylim(0, 45)

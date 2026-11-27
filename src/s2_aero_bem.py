@@ -19,6 +19,14 @@ import common as cm
 cpt.set_logging("ERROR")
 
 
+
+def extrapolate_spheroid(rows):
+    """Same panel extrapolation as for the box (h ~ nf^-1/2, first order, last three meshes)."""
+    nf = np.array([r["nf"] for r in rows], float)
+    A = np.c_[np.ones_like(nf), nf ** -0.5][-3:]
+    return {k: float(np.linalg.lstsq(A, np.array([r[k] for r in rows])[-3:], rcond=None)[0][0])
+            for k in ("k1", "k2")}
+
 def lamb_prolate(ar):
     """Exact Lamb (1932, Art. 115) added-mass coefficients of a prolate spheroid."""
     e = np.sqrt(1 - 1 / ar ** 2)
@@ -95,6 +103,7 @@ def run():
     A = np.c_[np.ones_like(hh), hh]
     coef = np.linalg.lstsq(A[-3:], ck[-3:], rcond=None)[0]
     res["box_CK_extrap"] = float(coef[0])
+    res["spheroid_extrap"] = extrapolate_spheroid(res["spheroid"])
     # ------------------------------------------------ summary of C_K estimates
     CK = {}
     CK["munk_spheroid_own_volume"] = 2 * (np.pi / 6) * (W / L) * (k2 - k1)

@@ -184,13 +184,28 @@ def test_two_tugger_lines_produce_commanded_couple():
     assert out[1] * cm.I_zz == pytest.approx(-cm.k_d_nom * 0.01, rel=1e-9)
 
 
+def test_integral_action_removes_static_error():
+    """With an integral term the closed-loop spectral solution has zero mean yaw and the
+    integrator state integrates psi - psi_ref."""
+    import s5_dynamics as d
+    m = Munk(0.496)
+    m.theta0 = np.radians(20.0)
+    sp = d.spectral(cm.L_mating, m, 0.01, 12.0, 0.06, 150.0, control=True, ki=6.7e4)
+    assert sp["psib"] == 0.0
+    P = d.params_vector(cm.L_mating, m, 0.01, 12.0, control=True, ki=6.7e4)
+    out = d._rhs(np.array([0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]), 12.0, np.zeros(10), P)
+    assert out[6] == pytest.approx(0.01)
+
+
 def test_lag_and_delay_margins_baseline_gains():
     from s6b_tuggers import tau_crit, delay_margin
     from aero_models import qASL
     s = cm.suspension(cm.L_mating)
     c = 2 * 0.01 * np.sqrt(s.k_psi * cm.I_zz)
     Ka = qASL(12.0) * 0.496
-    assert tau_crit(s.k_psi, cm.I_zz, c, 2e6, 6e6, Ka) == pytest.approx(3.11, abs=0.02)
+    assert tau_crit(s.k_psi, cm.I_zz, c, 2e6, 6e6, Ka)[0] == pytest.approx(3.11, abs=0.02)
+    lo, hi = tau_crit(s.k_psi, cm.I_zz, c, 5e5, 1e6, Ka)       # finite unstable window
+    assert (lo, hi) == (pytest.approx(2.25, abs=0.03), pytest.approx(111, abs=1))
     assert delay_margin(s.k_psi, cm.I_zz, c, 2e6, 6e6, Ka) == pytest.approx(2.02, abs=0.02)
 
 
@@ -213,8 +228,11 @@ def test_stored_results_match_paper():
     v = s5["verification"]
     assert v["td_sigma_deg"][0] == pytest.approx(v["spectral_sigma_deg"], abs=2 * v["td_sigma_deg"][1])
     ops = _load("s5c_operability.json")["exceedance"]
-    assert ops["munk|TI=0.06"]["U_tol"]["P|1.0|10%"] == pytest.approx(4.2, abs=0.05)
-    assert ops["box|TI=0.06"]["U_tol"]["P|1.0|10%"] == pytest.approx(5.4, abs=0.05)
+    assert ops["munk|TI=0.06"]["U_tol"]["P|1.0|10%"] == pytest.approx(4.4, abs=0.05)
+    assert ops["box|TI=0.06"]["U_tol"]["P|1.0|10%"] == pytest.approx(5.7, abs=0.05)
+    ia = _load("s6b_tuggers.json")["integral_action"]
+    assert ia["theta=20|TI=0.06|PD"]["U_tol_spectral"] == pytest.approx(10.0, abs=0.1)
+    assert ia["theta=20|TI=0.06|PID"]["U_tol_spectral"] == pytest.approx(17.2, abs=0.1)
     vs = _load("s4b_vessel_sensitivity.json")
     assert vs["baseline"]["T_coupled"][0] == pytest.approx(18.55, abs=0.05)
     assert vs["baseline"]["Tp=base|hd=90.0|munk"]["diff_pct"][0] == pytest.approx(52, abs=1)

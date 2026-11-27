@@ -150,9 +150,10 @@ NP = TUG + 6   # length of the parameter vector
 @njit(cache=True)
 def _rhs(s, U, q, P):
     # q (inputs): [u, v, xt, yt, azt, psv, dpsv, dth, dxt, dyt]
-    # P: [k, I, c_s, c_a, Mr, m, W, lp, rhoAsL_half, CDA_half_rho, kind, -, -, cyx, K_ref,
-    #     kp, kd, Mt_max, psi_ref, ctrl, c_pend, side_half_rho, theta0, a_1..a_NF]
-    psi, dpsi, x, dx, y, dy = s[0], s[1], s[2], s[3], s[4], s[5]
+    # P: [k, I, c_s, c_a, Mr, m, W, lp, rhoAsL_half, CDA_half_rho, kind, ki, -, cyx, K_ref,
+    #     kp, kd, Mt_max, psi_ref, ctrl, c_pend, side_half_rho, theta0, a_1..a_NF, tugger lines]
+    # state s: [psi, psi', x, x', y, y', integral of (psi - psi_ref)]
+    psi, dpsi, x, dx, y, dy, ipsi = s[0], s[1], s[2], s[3], s[4], s[5], s[6]
     u, v, xt, yt, azt, psv, dpsv, dth, dxt, dyt = q[0], q[1], q[2], q[3], q[4], q[5], q[6], q[7], q[8], q[9]
     k = P[0]; I = P[1]
     ux = U + u - dx
@@ -169,7 +170,7 @@ def _rhs(s, U, q, P):
         # two tugger lines attached at +-r_t on the payload axis, pulling towards anchors
         # fixed to the boom at (x_t +- r_t, y_t - l_t); the yaw couple is set by the tension
         # difference and a transverse sway damping by the tension sum; one-sided tension
-        Mc = -P[15] * (psi - P[18]) - P[16] * dpsi
+        Mc = -P[15] * (psi - P[18]) - P[16] * dpsi - P[11] * ipsi
         T0, rt, lt, Tmin, Tmax, csw = P[TUG], P[TUG + 1], P[TUG + 2], P[TUG + 3], P[TUG + 4], P[TUG + 5]
         Tc = T0 + 0.5 * csw * (dy - dyt)
         cp_, sp_ = np.cos(psi), np.sin(psi)
@@ -190,7 +191,7 @@ def _rhs(s, U, q, P):
             Fx += fx
             Fy += fy
     elif P[19] > 0.5:
-        Mt = -P[15] * (psi - P[18]) - P[16] * dpsi
+        Mt = -P[15] * (psi - P[18]) - P[16] * dpsi - P[11] * ipsi
         if Mt > P[17]:
             Mt = P[17]
         elif Mt < -P[17]:
@@ -203,8 +204,9 @@ def _rhs(s, U, q, P):
     kx = P[6] * fac / P[7]
     ddx = (-kx * (x - xt) - P[20] * (dx - dxt) + P[9] * sp * ux + Fx) / P[5]
     ddy = (-kx * (y - yt) - P[20] * (dy - dyt) + P[21] * sp * uy + Fy) / P[5]
-    out = np.empty(6)
+    out = np.empty(7)
     out[0] = dpsi; out[1] = ddpsi; out[2] = dx; out[3] = ddx; out[4] = dy; out[5] = ddy
+    out[6] = psi - P[18] if (P[19] > 0.5 and P[11] > 0.0) else 0.0
     return out
 
 
@@ -212,7 +214,7 @@ def _rhs(s, U, q, P):
 def _integrate(s0, dt, U, Q, P):
     """RK4 with inputs sampled on the integration grid (midpoints averaged)."""
     n = Q.shape[0]
-    out = np.empty((n, 6))
+    out = np.empty((n, 7))
     s = s0.copy()
     out[0] = s
     for i in range(n - 1):
@@ -236,7 +238,10 @@ def integrate(s0, dt, U, u, v, xt, yt, azt, psv, dpsv, P, dth=None, dxt=None, dy
     P = np.asarray(P, float)
     if len(P) < NP:
         P = np.r_[P, np.zeros(NP - len(P))]
-    return _integrate(np.asarray(s0, float), dt, U, Q, P)
+    s0 = np.asarray(s0, float)
+    if len(s0) < 7:
+        s0 = np.r_[s0, np.zeros(7 - len(s0))]
+    return _integrate(s0, dt, U, Q, P)
 
 
 ZETA_P = 0.02   # damping ratio of the pendulum mode (hoist friction, rigging; ASSUMED)
@@ -247,9 +252,9 @@ TUGGER = dict(T0=50e3, r_t=10.0, l_t=30.0, T_min=5e3, T_max=100e3, c_sway=0.0)
 
 def params_vector(L, model, zeta_s, U, control=False, kp=cm.k_p_nom, kd=cm.k_d_nom,
                   rope=True, aero_damping=True, aero_damping_munk=False, zeta_p=ZETA_P,
-                  tugger=None):
+                  tugger=None, ki=0.0):
     """control: False, True (ideal saturated couple) or 'lines' (two tugger lines with
-    the geometry and limits of `tugger`, default TUGGER)."""
+    the geometry and limits of `tugger`, default TUGGER); ki: integral gain."""
     s = cm.suspension(L)
     c_s = 2 * zeta_s * np.sqrt(s.k_psi * cm.I_zz)
     kind = 0 if isinstance(model, Munk) else 1
@@ -267,7 +272,7 @@ def params_vector(L, model, zeta_s, U, control=False, kp=cm.k_p_nom, kd=cm.k_d_n
     mode = 2.0 if control == "lines" else (1.0 if control else 0.0)
     return np.r_[s.k_psi, cm.I_zz, c_s, c_a, s.M_r if rope else 0.0, m, s.W_load,
                  lp, 0.5 * cm.rho_air * cm.A_side * cm.L_n,
-                 0.5 * cm.rho_air * CDA, kind, 0.0, 0.0, cyx, ref_slope(model),
+                 0.5 * cm.rho_air * CDA, kind, ki, 0.0, cyx, ref_slope(model),
                  kp, kd, cm.M_t_max, 0.0, mode,
                  c_p, 0.5 * cm.rho_air * cm.A_side * CYB, getattr(model, "theta0", 0.0), af,
                  tg["T0"], tg["r_t"], tg["l_t"], tg["T_min"], tg["T_max"], tg["c_sway"]]
@@ -296,13 +301,14 @@ def static_equilibrium(P, U):
 # ------------------------------------------------------------ spectral model
 def spectral(L, model, zeta_s, U, TI, z, control=False, kp=cm.k_p_nom, kd=cm.k_d_nom,
              vessel=None, rope=True, f=None, aero_damping_munk=False, spectrum="kaimal",
-             ca_factor=1.0):
+             ca_factor=1.0, ki=0.0):
     """Linearised yaw response spectrum and its decomposition.
     spectrum: 'kaimal' (IEC) or 'froya' (DNV-RP-C205 shape, same variances);
-    ca_factor scales the aerodynamic yaw damping (sensitivity)."""
+    ca_factor scales the aerodynamic yaw damping (sensitivity); ki: integral gain of the
+    controller, which removes the mean yaw (the bias is then carried by the tugger lines)."""
     P = params_vector(L, model, zeta_s, U, bool(control), kp, kd, rope, aero_damping_munk=aero_damping_munk)
     k, I, c_s, c_a = P[0], P[1], P[2], P[3] * ca_factor
-    psib = static_equilibrium(P, U)
+    psib = 0.0 if (control and ki > 0) else static_equilibrium(P, U)
     qasl = P[8] * U ** 2
     th0 = getattr(model, "theta0", 0.0)
     dc = float(model.dc(psib - th0))
@@ -313,7 +319,7 @@ def spectral(L, model, zeta_s, U, TI, z, control=False, kp=cm.k_p_nom, kd=cm.k_d
     if f is None:
         f = np.logspace(-4, 0.3, 6000)
     w = 2 * np.pi * f
-    H = 1.0 / (keff - I * w ** 2 + 1j * ctot * w)
+    H = 1.0 / (keff - I * w ** 2 + 1j * ctot * w - 1j * (ki if control else 0.0) / w)
     lam = cm.Lambda1(z)
     if spectrum == "froya":
         Su = froya(f, TI * U, U, z)
@@ -349,7 +355,7 @@ def spectral(L, model, zeta_s, U, TI, z, control=False, kp=cm.k_p_nom, kd=cm.k_d
 def simulate(L, model, zeta_s, U, TI, z, seeds, record=None, burn=600.0, dt=0.05,
              vessel=False, heading=150.0, control=False, kp=cm.k_p_nom, kd=cm.k_d_nom,
              rope=True, Hs=cm.Hs, Tp=cm.Tp, zeta_p=ZETA_P, only=None, two_way=True,
-             windows=None, tugger=None, vessel_variant=None):
+             windows=None, tugger=None, vessel_variant=None, ki=0.0, P_override=None):
     """Time-domain runs (one record of length `record` per seed after the burn-in).
     only: restrict the vessel input to 'yaw', 'horiz' or 'heave'.
     two_way: boom-tip motion from the coupled vessel-pendulum solution.
@@ -359,7 +365,10 @@ def simulate(L, model, zeta_s, U, TI, z, seeds, record=None, burn=600.0, dt=0.05
     times 1/(zeta_tot w_0) of the response envelope (unless `record` is given).
     windows: length [s] of the windows whose largest |psi| is returned (win_max, and
     win_max_dyn about the record mean).  control='lines': two physical tugger lines."""
-    P = params_vector(L, model, zeta_s, U, control, kp, kd, rope, zeta_p=zeta_p, tugger=tugger)
+    P = params_vector(L, model, zeta_s, U, control, kp, kd, rope, zeta_p=zeta_p, tugger=tugger, ki=ki)
+    if P_override:
+        for i_, v_ in P_override.items():
+            P[i_] = v_
     psib = static_equilibrium(P, U)
     spx = spectral(L, model, zeta_s, U, TI, z, bool(control), kp, kd, rope=rope)
     tau = 1.0 / (spx["zeta_tot"] * 2 * np.pi * max(spx["f_n"], 1e-4))   # envelope correlation time
@@ -399,6 +408,8 @@ def simulate(L, model, zeta_s, U, TI, z, seeds, record=None, burn=600.0, dt=0.05
                           sway_std=float(np.hypot(X[i0:, 2].std(), X[i0:, 4].std())),
                           sway_rel_std=float(np.hypot((X[i0:, 2] - xt[i0:]).std(),
                                                       (X[i0:, 4] - yt[i0:]).std())),
+                          sway_rel_vel_std=float(np.hypot((X[i0:, 3] - dxt[i0:]).std(),
+                                                          (X[i0:, 5] - dyt[i0:]).std())),
                           sway_angle_std=float(np.degrees(np.hypot((X[i0:, 2] - xt[i0:]).std(),
                                                                    (X[i0:, 4] - yt[i0:]).std())
                                                           / (L + Z_BLOCK_CG))),
@@ -418,7 +429,7 @@ def simulate(L, model, zeta_s, U, TI, z, seeds, record=None, burn=600.0, dt=0.05
 def line_diagnostics(X, xt, yt, dyt, P, dt):
     """Tensions, tension rates and reeling speeds of the two tugger lines (control='lines')."""
     psi, dpsi, x, y, dy = X[:, 0], X[:, 1], X[:, 2], X[:, 4], X[:, 5]
-    Mc = -P[15] * (psi - P[18]) - P[16] * dpsi
+    Mc = -P[15] * (psi - P[18]) - P[16] * dpsi - P[11] * X[:, 6]
     T0, rt, lt, Tmin, Tmax, csw = P[TUG:TUG + 6]
     Tc = T0 + 0.5 * csw * (dy - dyt)
     out = {}

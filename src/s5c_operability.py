@@ -51,8 +51,8 @@ def run(seeds=range(10)):
     models = {"munk": Munk(CK), "box": d.box_model()}
 
     # (1) exceedance probability from 20-min windows ----------------------------------
-    grids = {0.06: [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 12.0, 14.0],
-             0.12: [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0]}
+    grids = {0.06: list(np.arange(2.5, 10.01, 0.5)) + [12.0, 14.0],
+             0.12: list(np.arange(2.0, 8.01, 0.5)) + [10.0]}
     ex = {}
     for mn, m in models.items():
         for TI, Us in grids.items():
@@ -64,6 +64,7 @@ def run(seeds=range(10)):
                     row[f"P|{tol}"] = prob(st, tol)
                     row[f"Pdyn|{tol}"] = prob(st, tol, "win_max_dyn")
                 row["median_max"] = float(np.median(np.concatenate([s["win_max"] for s in st])))
+                row["frac_in_tol"] = d.summarize(st, "frac_in_tol")
                 rows.append(row)
             lim = {}
             for tol in TOLS:
@@ -71,10 +72,58 @@ def run(seeds=range(10)):
                     Pm = [r[f"{key}|{tol}"][0] for r in rows]
                     lim[f"{key}|{tol}|10%"] = crossing(Us, Pm, 0.10)
                     lim[f"{key}|{tol}|50%"] = crossing(Us, Pm, 0.50)
+                Pm = np.array([r[f"P|{tol}"][0] for r in rows])
+                Ph = np.array([r[f"P|{tol}"][1] for r in rows])
+                lim[f"P|{tol}|10%|range"] = [crossing(Us, Pm + Ph, 0.10), crossing(Us, np.maximum(Pm - Ph, 0), 0.10)]
+            # alternative criterion: fraction of time within 1 deg falls to 90 %
+            ft = np.array([r["frac_in_tol"][0] for r in rows])
+            lim["time_in_tol_90%"] = crossing(Us, 1.0 - ft, 0.10)
             ex[f"{mn}|TI={TI}"] = dict(rows=rows, U_tol=lim)
-            print(mn, TI, {k: (None if v is None else round(v, 2)) for k, v in lim.items()},
+            print(mn, TI, {k: (v if v is None or isinstance(v, list) else round(v, 2)) for k, v in lim.items()},
                   round(time.time() - t0))
     out["exceedance"] = ex
+
+    # (1b) U_tol (P_e = 10 %, 1 deg) for other structural damping ratios -----------------
+    zt = {}
+    for mn, m in models.items():
+        for zeta in (0.002, 0.05):
+            for TI in cm.TI_values:
+                Us_ = None
+                for U in np.linspace(1.0, 20.0, 77):
+                    if d.spectral(L, m, zeta, U, TI, z)["expected_max"] >= np.radians(1.0):
+                        Us_ = U
+                        break
+                Ug = np.arange(max(1.5, np.floor(1.2 * Us_) / 2), 1.5 * Us_ + 0.01, 0.5)
+                Pm, Ph = [], []
+                for U in Ug:
+                    st = d.simulate(L, m, zeta, U, TI, z, seeds, record=WINDOW * N_WIN, windows=WINDOW)
+                    pm, ph = prob(st, 1.0)
+                    Pm.append(pm); Ph.append(ph)
+                Pm, Ph = np.array(Pm), np.array(Ph)
+                zt[f"{mn}|zeta={zeta}|TI={TI}"] = dict(
+                    U=Ug.tolist(), P=Pm.tolist(), hw=Ph.tolist(), U_spectral=float(Us_),
+                    U_tol=crossing(Ug, Pm, 0.10),
+                    U_tol_range=[crossing(Ug, Pm + Ph, 0.10), crossing(Ug, np.maximum(Pm - Ph, 0), 0.10)])
+                print(mn, zeta, TI, zt[f"{mn}|zeta={zeta}|TI={TI}"]["U_tol"], round(time.time() - t0))
+    out["U_tol_damping"] = zt
+
+    # (1c) compliant connection, k_c/k_psi = 1: time-domain check of the spectral estimate --
+    # (block quasi-static: series stiffness, damping ratio of the payload mode zeta_s,
+    #  rope torque transmitted in the ratio k_c/(k_psi + k_c))
+    cc = {}
+    s_ = cm.suspension(L)
+    keq = 0.5 * s_.k_psi
+    for mn, m in models.items():
+        Pm = []
+        Ug = np.arange(2.5, 6.51, 0.5)
+        for U in Ug:
+            ov = {0: keq, 2: 2 * 0.01 * np.sqrt(keq * cm.I_zz), 4: 0.5 * s_.M_r}
+            st = d.simulate(L, m, 0.01, U, 0.06, z, seeds, record=WINDOW * N_WIN, windows=WINDOW,
+                            burn=3000.0, P_override=ov)
+            Pm.append(prob(st, 1.0)[0])
+        cc[mn] = dict(U=Ug.tolist(), P=Pm, U_tol=crossing(Ug, Pm, 0.10))
+    out["connection_r1"] = cc
+    print("connection r=1", {k: v["U_tol"] for k, v in cc.items()})
 
     # (2) spectral thresholds for the same tolerances --------------------------------
     spl = {}

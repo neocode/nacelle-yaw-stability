@@ -133,7 +133,7 @@ def fig3():
     b.set_xlabel(r"incidence $\beta$ (deg)")
     b.set_ylabel(r"$M_a/(q A_s L_n)$")
     b.set_ylim(-0.13, 0.27)
-    b.legend(loc="upper center", fontsize=5.6, ncol=2, bbox_to_anchor=(0.45, -0.25))
+    b.legend(loc="upper center", fontsize=6.2, ncol=2, bbox_to_anchor=(0.45, -0.25))
     panel_label(b, "b")
     fig.tight_layout(w_pad=1.0)
     save(fig, "Fig3_aero_coefficients")
@@ -274,7 +274,7 @@ def fig5c():
     a.set_xlim(0.05, 100); a.set_ylim(0, 42)
     a.set_xlabel(r"connection-to-falls stiffness ratio $k_c/k_\psi$")
     a.set_ylabel("wind speed at the payload (m/s)")
-    a.legend(fontsize=5.4, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
+    a.legend(fontsize=6.3, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
     panel_label(a, "a")
     b = ax[1]
     mp = cb["map_mating"]
@@ -285,13 +285,13 @@ def fig5c():
     cpf = np.linspace(0.1, 1.0, 200)
     for j, (rv, col) in enumerate(((np.inf, C1), (5.0, C3), (1.0, C4), (0.2, C5))):
         f_ = 1.0 if np.isinf(rv) else np.sqrt(rv / (1 + rv))
-        lab = "rigid" if np.isinf(rv) else f"{rv:g}"
+        lab = r"rigid connection" if np.isinf(rv) else rf"$k_c/k_\psi$ = {rv:g}"
         b.plot(cpf, np.sqrt(2 * k / (cm.rho_air * cm.A_side * cm.L_n * cpf)) * f_, color=col, lw=1.3,
-               label=rf"$U_{{div}}$, $k_c/k_\psi$ = {lab}")
+               label=rf"$U_{{div}}$, {lab}")
     for rv, col in ((100.0, C1), (1.0, C4)):
         jj = rm.index(rv)
         b.plot(cp, Ut[:, jj], color=col, ls=":", lw=1.4, marker="o", ms=2.3,
-               label=rf"$U_{{tol}}$, $k_c/k_\psi$ = {'rigid' if rv == 100.0 else f'{rv:g}'}")
+               label=(r"$U_{tol}$, rigid connection" if rv == 100.0 else rf"$U_{{tol}}$, $k_c/k_\psi$ = {rv:g}"))
     b.axvspan(0.24, 0.34, color=C2, alpha=0.15, lw=0)
     b.text(0.29, 54, "box", fontsize=6.0, color=C2, ha="center")
     for x, t in ((0.259, "spheroid"), (CK, "potential flow, box")):
@@ -300,7 +300,7 @@ def fig5c():
     b.set_xlim(0.1, 1.0); b.set_ylim(0, 60)
     b.set_xlabel(r"aerodynamic slope $c'$")
     b.set_ylabel(r"wind speed at mating (m/s)")
-    b.legend(fontsize=5.4, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
+    b.legend(fontsize=6.3, loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2)
     panel_label(b, "b")
     fig.tight_layout(w_pad=1.2)
     save(fig, "Fig5_connection")
@@ -337,14 +337,14 @@ def fig7():
         R_ = rao if Lk is None else np.abs(np.array(cpl[Lk]["rao_re"]) + 1j * np.array(cpl[Lk]["rao_im"]))
         a.plot(w, np.degrees(R_[:, j2, 3]), color=col, ls=ls, lw=lw, label=nm)
     a.set_ylabel("roll RAO (deg/m)")
-    a.legend(fontsize=5.6, loc="upper right", title=r"120 deg, fall length", title_fontsize=5.6, framealpha=0.6)
+    a.legend(fontsize=6.0, loc="upper right", title=r"120 deg, fall length", title_fontsize=5.6, framealpha=0.6)
     panel_label(a, "b")
     a = ax[2]
     for nm, Lk, col, ls, lw in cases:
         T_ = tip if Lk is None else np.abs(np.array(cpl[Lk]["tip_re"]) + 1j * np.array(cpl[Lk]["tip_im"]))
         a.plot(w, np.hypot(T_[:, j2, 0], T_[:, j2, 1]), color=col, ls=ls, lw=lw, label=nm)
     a.set_ylabel("boom-tip horizontal RAO (m/m)")
-    a.legend(fontsize=5.6, loc="upper right", title=r"120 deg, fall length", title_fontsize=5.6, framealpha=0.6)
+    a.legend(fontsize=6.0, loc="upper right", title=r"120 deg, fall length", title_fontsize=5.6, framealpha=0.6)
     panel_label(a, "c")
     for a in ax[:3]:
         a.set_xlim(0.15, 1.5)
@@ -361,7 +361,7 @@ def fig7():
     a.set_xlim(1e-3, 0.5); a.set_ylim(1e-3, 1e2)
     a.set_xlabel("frequency (Hz)")
     a.set_ylabel("gain (-)")
-    a.legend(fontsize=5.8, loc="lower left")
+    a.legend(fontsize=6.2, loc="lower left")
     a.text(0.115, 30, "waves", fontsize=6.3, color=INK2, ha="center")
     panel_label(a, "d")
     fig.tight_layout(w_pad=0.8)
@@ -374,7 +374,7 @@ def fig6():
     d5 = R("s5_dynamics")
     resp = d5["response"]
     ext = d5["extremes"]
-    fig, axs = plt.subplots(2, 2, figsize=(cm.W2, 5.6))
+    fig, axs = plt.subplots(2, 2, figsize=(cm.W2, 6.1))
     ax = [axs[0, 0], axs[0, 1], axs[1, 0], axs[1, 1]]
     for a, mname, lab, title in ((ax[0], "munk", "a", "potential flow (Munk)"),
                                  (ax[1], "box", "b", f"box, wind {abs(d5['box_theta0_deg']):.0f}° off axis")):
@@ -403,11 +403,11 @@ def fig6():
         a.set_title(title, fontsize=7.0, loc="right")
         panel_label(a, lab)
     ax[0].set_ylabel(r"yaw standard deviation $\sigma_\psi$ (deg)")
-    ax[0].legend(loc="lower right", fontsize=5.4)
+    ax[0].legend(loc="lower right", fontsize=6.2)
     hh = [Line2D([], [], marker="o", color=INK2, mfc="white", ls="none", label=rf"time domain, $L$ = {cm.L_mating:.0f} m"),
           Line2D([], [], marker="x", color=INK, ls="none", label=r"time domain, $L$ = 100 m"),
           Line2D([], [], marker="+", color=INK, ls="none", label=r"time domain, $L$ = 150 m")]
-    ax[1].legend(handles=hh, loc="lower right", fontsize=5.4)
+    ax[1].legend(handles=hh, loc="lower right", fontsize=6.2)
     # (c) physical wind at mating: standard deviation and expected 20-min maximum
     a = ax[2]
     for k_, (mname, nm) in enumerate((("munk", "Munk"), ("box", "box, 20°"))):
@@ -425,7 +425,7 @@ def fig6():
     a.set_xlabel(r"mean wind at hub height $U$ (m/s)")
     a.set_title(rf"mating ($L$ = {cm.L_mating:.0f} m), $\zeta_s$ = 0.01", fontsize=7.0, loc="right")
     a.set_ylabel(r"$\sigma_\psi$; expected largest $|\psi|$ (deg)")
-    a.legend(loc="lower right", fontsize=5.2, ncol=1)
+    a.legend(loc="upper center", fontsize=6.0, ncol=2, bbox_to_anchor=(0.5, -0.17))
     panel_label(a, "c")
     # (d) probability that the largest |psi| in 20 min exceeds the tolerance (time domain)
     a = ax[3]
@@ -444,9 +444,10 @@ def fig6():
     a.set_xlabel(r"mean wind at hub height $U$ (m/s)")
     a.set_ylabel(r"$P\{\max|\psi| > \psi_{tol}$ in 20 min$\}$")
     a.set_title("mating, TI = 0.06, time domain", fontsize=7.0, loc="right")
-    a.legend(loc="lower right", fontsize=5.2)
+    a.legend(loc="upper center", fontsize=6.0, ncol=2, bbox_to_anchor=(0.5, -0.17))
     panel_label(a, "d")
     fig.tight_layout(w_pad=1.0, h_pad=1.2)
+    fig.subplots_adjust(bottom=0.14)
     save(fig, "Fig7_turbulent_response")
     plt.close(fig)
 
@@ -472,7 +473,7 @@ def fig8():
     a.set_xlim(1e4, 1e7); a.set_ylim(0, 100)
     a.set_xlabel(r"proportional gain $k_p$ (N m/rad)")
     a.set_ylabel(r"closed-loop $U_{div,cl}$ (m/s)")
-    a.legend(fontsize=5.8, loc="upper left")
+    a.legend(fontsize=6.3, loc="upper left")
     panel_label(a, "a")
     b = ax[1]
     td = s6["time_domain"]
@@ -489,7 +490,7 @@ def fig8():
     b.set_xlim(6, 22); b.set_ylim(0.005, 40)
     b.set_xlabel(r"mean wind $U$ (m/s)")
     b.set_ylabel(r"$\sigma_\psi$ (deg)")
-    b.legend(fontsize=5.4, loc="upper center", ncol=2, bbox_to_anchor=(0.5, -0.27))
+    b.legend(fontsize=6.3, loc="upper center", ncol=2, bbox_to_anchor=(0.5, -0.27))
     panel_label(b, "b")
     # (c) critical actuator lag and delay margin versus the gains (mating, 12 m/s)
     c = ax[2]
@@ -510,7 +511,7 @@ def fig8():
     c.set_xlim(8e5, 1.5e7); c.set_ylim(0.2, 30)
     c.set_xlabel(r"derivative gain $k_d$ (N m s/rad)")
     c.set_ylabel("lag or delay (s)")
-    c.legend(fontsize=5.0, loc="upper center", ncol=2, bbox_to_anchor=(0.5, -0.27))
+    c.legend(fontsize=6.0, loc="upper center", ncol=2, bbox_to_anchor=(0.5, -0.27))
     panel_label(c, "c")
     fig.tight_layout(w_pad=1.2)
     fig.subplots_adjust(bottom=0.36)

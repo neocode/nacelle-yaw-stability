@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.6.0 (2026-11-28)
+
+### Fixed
+- Critical actuator lag (`s6b_tuggers.tau_crit`): the loop is now scanned over the lag, so finite instability windows are found (previously a loop stable at very large lag was taken as stable for all lags); the upper end of the window is reported.
+
+### Added
+- Integral action of the tugger controller (seventh state of the time-domain model, `ki`), closed-loop tolerance speed for misaligned winds with PD and PID control, and the lag and delay margins with integral action.
+- Passive radial constant-tension tugger lines: divergence speed along the lift and tolerance speed at mating.
+- Swell near the coupled roll-pendulum mode with a damped pendulum (pendulum damping ratios 0.1 and 0.2), with the damping force.
+- Probability of exceeding the tolerance on a 0.5 m/s wind grid with confidence ranges, for structural damping ratios 0.002-0.05 and turbulence intensities 0.06-0.12; fraction of time within the tolerance; time-domain check of the connection case k_c/k_psi = 1.
+- Panel extrapolation of the spheroid added masses (`s2_aero_bem.extrapolate_spheroid`).
+- Standard deviation of the relative sway velocity in the time-domain statistics; parameter override in `simulate`.
+
+### Changed
+- Figures 5, 7 and 9 and the graphical abstract revised (labels, legend positions and sizes, lag curves).
+
 ## 2.5.0 (2026-11-27)
 
 ### Added

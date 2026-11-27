@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it and the associated paper as below."
 title: "nacelle-yaw-stability: code and data for the yaw stability of a nacelle suspended from a multi-fall offshore crane hoist"
 type: software
-version: "2.5.0"
-date-released: "2026-11-27"
+version: "2.6.0"
+date-released: "2026-11-28"
 license: MIT
 doi: "10.5281/zenodo.24403652"
 identifiers:
